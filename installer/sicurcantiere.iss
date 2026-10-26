@@ -4,7 +4,7 @@
 ; condivise: l'utente sceglie quali installare; ogni programma apre con un doppio clic i propri file:
 ; .scs (PSC), .spo (POS), .spm (PiMUS).
 
-#define Versione "0.22.1"
+#define Versione "0.23.0"
 
 [Setup]
 AppId={{6B1F2C3E-5A7D-4E8B-9C0D-53C1CA171E20}

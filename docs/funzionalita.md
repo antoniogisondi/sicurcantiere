@@ -4,7 +4,7 @@ Documento di riferimento del prodotto, da tenere aggiornato a ogni versione. Ser
 di vendita, per le presentazioni ai clienti e per non perdere le decisioni prese. Il dettaglio
 tecnico è nel [README](../README.md).
 
-*Ultimo aggiornamento: versione 0.22.1 (PSC senza scelta dell'impresa; licenze per PC pronte sul server, non ancora attive nei programmi), ottobre 2026.*
+*Ultimo aggiornamento: versione 0.23.0 (licenze legate ai PC con sola lettura, AI con il certificato del PC, programma compilato con Nuitka e controlli di sicurezza), ottobre 2026.*
 
 ## Lo scopo
 
