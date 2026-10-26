@@ -146,3 +146,25 @@ def test_promemoria_e_registro_invii(client):
     assert "Codice consegnato" in registro and "Promemoria di rinnovo" in registro and "bianchi@example.com" in registro
     assert "<td>mai</td>" not in client.get("/").get_data(as_text=True)
     assert archivio.connessione().execute("SELECT COUNT(*) FROM invii").fetchone()[0] == 2
+
+
+def test_reinserisci_codice_dopo_la_perdita_del_database(client, tmp_path, capsys):
+    from licenze import archivio
+    from licenze.__main__ import main
+    from licenze.app import _nuovo_identificativo
+    from sicurcantiere import licenza
+
+    privata = archivio.chiave_privata()
+    anno = date.today().year
+    codici = [licenza.firma(licenza.Licenza(f"SC-{anno}-{n:04d}", "Studio Rossi", "studio", date.today(),
+                                            date.today() + timedelta(days=300), 3), privata) for n in (1, 3)]
+    assert main(["reinserisci-codice", codici[0]]) == 0 and "reinserita" in capsys.readouterr().out
+    assert main(["reinserisci-codice", codici[1]]) == 0
+    assert main(["reinserisci-codice", codici[1]]) == 0 and "c'è già" in capsys.readouterr().out
+    conn = archivio.connessione()
+    righe = conn.execute("SELECT l.*, c.nome FROM licenze l JOIN clienti c ON c.id = l.cliente_id").fetchall()
+    assert len(righe) == 2 and {r["nome"] for r in righe} == {"Studio Rossi"}  # un solo cliente
+    assert righe[0]["piano"] == "studio" and righe[0]["postazioni"] == 3
+    assert _nuovo_identificativo(conn) == f"SC-{anno}-0004"  # mai un numero già usato
+    falso = licenza.firma(licenza.Licenza("X", "Y", "pos", date.today()), bytes(32))  # firmato da un'altra chiave
+    assert main(["reinserisci-codice", falso]) == 1

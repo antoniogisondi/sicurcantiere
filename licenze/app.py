@@ -176,9 +176,35 @@ def mailto(destinatario: str, oggetto: str, corpo: str) -> str:
 
 
 def _nuovo_identificativo(conn) -> str:
+    """SC-<anno>-<numero>: il numero segue il più alto dell'anno (anche con licenze reinserite a salti)."""
     anno = date.today().year
-    n = conn.execute("SELECT COUNT(*) FROM licenze WHERE codice_licenza LIKE ?", (f"SC-{anno}-%",)).fetchone()[0]
-    return f"SC-{anno}-{n + 1:04d}"
+    numeri = [int(r[0].rsplit("-", 1)[1]) for r in conn.execute(
+        "SELECT codice_licenza FROM licenze WHERE codice_licenza LIKE ?", (f"SC-{anno}-%",))
+        if r[0].rsplit("-", 1)[1].isdigit()]
+    return f"SC-{anno}-{max(numeri, default=0) + 1:04d}"
+
+
+def reinserisci_codice(conn, codice: str, email: str = "") -> tuple[str, bool]:
+    """Rimette nel database un codice di licenza già emesso (per esempio dopo la perdita del database).
+
+    Il codice contiene cliente, piano, emissione, scadenza e postazioni: si verifica la firma con la chiave
+    delle licenze e si crea la licenza (e il cliente, se non c'è già con quel nome). Restituisce
+    (identificativo, True se inserita / False se c'era già).
+    """
+    codice = "".join(codice.split())
+    dati = licenza.leggi(codice, archivio.chiave_pubblica())  # ErroreLicenza se non è firmato da questa chiave
+    if conn.execute("SELECT 1 FROM licenze WHERE codice = ? OR codice_licenza = ?", (codice, dati.id)).fetchone():
+        return dati.id, False
+    cliente = conn.execute("SELECT id FROM clienti WHERE nome = ?", (dati.cliente,)).fetchone()
+    cliente_id = cliente[0] if cliente else conn.execute(
+        "INSERT INTO clienti (nome, email) VALUES (?, ?)", (dati.cliente, email)).lastrowid
+    conn.execute(
+        "INSERT INTO licenze (codice_licenza, cliente_id, piano, emessa, scadenza, postazioni, prezzo, codice, note) "
+        "VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)",
+        (dati.id, cliente_id, dati.piano, dati.emessa.isoformat(), dati.scadenza.isoformat() if dati.scadenza else None,
+         dati.postazioni, codice, "Reinserita da un codice già emesso"))
+    conn.commit()
+    return dati.id, True
 
 
 def emetti(conn, cliente_id: int, piano: str, scadenza: date | None, postazioni: int, prezzo: float,

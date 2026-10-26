@@ -10,6 +10,9 @@
     python -m licenze chiave-servizio   crea una nuova chiave di servizio (servizio.json) per il server delle
                                         attivazioni: da copiare sul server separato, se c'è
     python -m licenze pc CODICE_LICENZA elenca i PC attivi di una licenza (es. SC-2026-0012)
+    python -m licenze reinserisci-codice [CODICE]
+                                        rimette nel database un codice di licenza già emesso (se manca il
+                                        codice, lo chiede: si può incollare dall'email di consegna)
     python -m licenze chiave-aggiornamenti
                                         crea la chiave che firma gli aggiornamenti del programma (una volta
                                         sola) e mostra cosa copiare su GitHub e cosa nel programma
@@ -93,6 +96,18 @@ def main(argv: list[str]) -> int:
             print(f"  {p['id']}  {p['nome']:<30} attivato {p['attivato']}  ultimo uso {p['ultimo_uso']}"
                   + ("  (offline)" if p["offline"] else ""))
         conn.commit()
+        return 0
+    if comando == "reinserisci-codice" and len(argv) <= 2:
+        from licenze.app import reinserisci_codice
+        from sicurcantiere import licenza
+
+        codice = argv[1] if len(argv) == 2 else input("Incolla il codice di licenza (SC1-...): ")
+        try:
+            identificativo, nuova = reinserisci_codice(archivio.connessione(), codice)
+        except licenza.ErroreLicenza as e:
+            print(f"Codice non reinserito: {e} (deve essere firmato con la chiave delle licenze di questo server)")
+            return 1
+        print(f"Licenza {identificativo} reinserita." if nuova else f"La licenza {identificativo} c'è già.")
         return 0
     if comando == "chiave-aggiornamenti":
         import base64
