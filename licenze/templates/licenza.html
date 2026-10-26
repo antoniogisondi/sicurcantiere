@@ -18,15 +18,16 @@
 
 <div class="card" id="pc"><h2>PC attivati <span class="badge {{ 'b-scaduta' if att.attivi|length >= att.posti else 'b-attiva' }}">{{ att.attivi|length }} su {{ att.posti }}</span></h2>
 <div class="corpo">
-<p class="sotto" style="margin:0 0 10px">La licenza si attiva su {{ att.posti }} PC ({{ att.postazioni }} {{ 'postazione' if att.postazioni == 1 else 'postazioni' }}{% if att.posti_extra %} più {{ att.posti_extra }} {{ 'posto aggiunto' if att.posti_extra == 1 else 'posti aggiunti' }}{% endif %}): il PC in più viene rifiutato.
+<p class="sotto" style="margin:0 0 10px">La licenza si attiva su {{ att.posti }} PC ({{ att.postazioni }} {{ 'postazione' if att.postazioni == 1 else 'postazioni' }}{% if att.posti_extra %} più {{ att.posti_extra }} {{ 'posto aggiunto' if att.posti_extra == 1 else 'posti aggiunti' }}{% endif %}): il PC in più viene rifiutato. Su ogni PC attivato si usano tutti i programmi compresi nella licenza
+({{ att.programmi }}), qualunque sia quello da cui è stata attivata.
 {% if precedente or successiva %}I PC valgono per tutta la licenza, compresi i rinnovi.{% endif %}
 Negli ultimi 30 giorni: {{ att.nuove_30 }} PC nuovi attivati, {{ att.trasferimenti_rimasti }} {{ 'attivazione' if att.trasferimenti_rimasti == 1 else 'attivazioni' }} di PC nuovi ancora possibili{% if att.rifiuti_30 %}, <b>{{ att.rifiuti_30 }} {{ 'tentativo rifiutato' if att.rifiuti_30 == 1 else 'tentativi rifiutati' }}</b> (ultimo il {{ att.ultimo_rifiuto|istante }}){% endif %}.</p>
 </div>
-{% if att.attivi %}<table><tr><th>PC</th><th>Attivato</th><th>Ultimo uso</th><th>Programma</th><th>Versione</th><th></th></tr>
+{% if att.attivi %}<table><tr><th>PC</th><th>Attivato</th><th>Ultimo uso</th><th>Programmi usati</th><th>Versione</th><th></th></tr>
 {% for p in att.attivi %}<tr><td><b>{{ p.nome or "PC senza nome" }}</b> <span class="mono sotto">{{ p.codice_pc }}</span>
 {% if p.offline %}<span class="badge b-rinnovata">offline</span>{% endif %}
 {% if p.sospetto %}<div class="badge b-in-scadenza" title="{{ p.sospetto }}">possibile copia della macchina</div><div class="sotto" style="margin:2px 0 0">{{ p.sospetto }}</div>{% endif %}</td>
-<td>{{ p.attivato|istante }}</td><td>{{ p.ultimo_uso|istante }}</td><td>{{ p.programma|upper }}</td><td>{{ p.versione or "—" }}</td>
+<td>{{ p.attivato|istante }}</td><td>{{ p.ultimo_uso|istante }}</td><td>{{ p.programma|programmi }}</td><td>{{ p.versione or "—" }}</td>
 <td class="destra"><form class="riga" style="justify-content:flex-end" method="post" action="{{ url_for('disattiva_pc', id_=l.id, codice_pc=p.codice_pc) }}" data-conferma="Disattivare {{ p.nome }}? Il posto si libera e quel PC dovrà essere riattivato.">
 <input type="hidden" name="token" value="{{ token }}"><input name="motivo" placeholder="Motivo (facoltativo)" style="width:180px"><button class="pericolo">Disattiva</button></form>
 {% if p.sospetto %}<form method="post" action="{{ url_for('ignora_sospetto', id_=l.id, codice_pc=p.codice_pc) }}" style="margin-top:4px"><input type="hidden" name="token" value="{{ token }}"><button>Ignora la segnalazione</button></form>{% endif %}</td></tr>{% endfor %}

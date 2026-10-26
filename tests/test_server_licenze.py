@@ -405,3 +405,19 @@ def test_comandi_del_server(server, tmp_path, capsys):
     uscita = capsys.readouterr().out
     assert "1 PC attivi su 2" in uscita and "CANTIERE" in uscita and "(offline)" in uscita
     assert main(["chiave-servizio"]) == 0
+
+
+def test_programmi_usati_sullo_stesso_pc(server):
+    """L'attivazione vale per il PC e per tutti i programmi della licenza: si annotano quelli usati."""
+    from licenze import archivio
+
+    codice, _ = server.licenza(piano="completo", postazioni=1)
+    server.pc("CASA", programma="pimus", cartella="casa").attiva(codice)
+    for programma in ("psc", "pos"):
+        server.pc("CASA", programma=programma, cartella="casa").convalida()  # stesso certificato, altro programma
+    riga = archivio.connessione().execute("SELECT programma FROM pc_licenza").fetchone()
+    assert riga["programma"] == "psc,pos,pimus"
+    from licenze.attivazioni import nomi_programmi, programmi_usati
+
+    assert nomi_programmi(riga["programma"]) == "PSC, POS, PiMUS"
+    assert programmi_usati("pos", "") == "pos" and programmi_usati("", "sconosciuto") == ""

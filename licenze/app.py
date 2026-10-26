@@ -68,6 +68,12 @@ def crea_app(https: bool = True) -> Flask:
         except (ValueError, KeyError):
             return str(valore)[:16]
 
+    @app.template_filter("programmi")
+    def programmi(valore):
+        from licenze.attivazioni import nomi_programmi
+
+        return nomi_programmi(valore) or "—"
+
     @app.template_filter("evento")
     def evento(riga):
         from licenze.attivazioni import descrizione

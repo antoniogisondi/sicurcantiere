@@ -187,7 +187,7 @@ class Licenze:
         impronte = self.impronte(certificato.sale)
         try:
             risposta = self._invia("convalida", {"certificato": custodia.leggi_certificato(), "impronte": impronte,
-                                                 "versione": self.versione})
+                                                 "versione": self.versione, "programma": self.programma})
         except ErroreServer as e:
             if e.dati.get("certificato"):  # licenza revocata: il server manda il certificato aggiornato
                 return self._salva(str(e.dati["certificato"]), impronte)

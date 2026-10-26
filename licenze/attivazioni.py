@@ -278,6 +278,20 @@ def _certificato(conn, attuale, pc, ora: datetime, offline: bool = False) -> str
     return emetti(c, privata, autorizzazione)
 
 
+ORDINE_PROGRAMMI = ("psc", "pos", "pimus")
+
+
+def programmi_usati(attuali: str, nuovo: str) -> str:
+    """Programmi usati su un PC («psc,pos»): l'attivazione vale per il PC e per tutti i programmi della
+    licenza, qui si annota con quali programmi il PC si è collegato."""
+    usati = {v for v in (attuali or "").split(",") if v} | ({nuovo} if nuovo in ORDINE_PROGRAMMI else set())
+    return ",".join(v for v in ORDINE_PROGRAMMI if v in usati)
+
+
+def nomi_programmi(valore: str) -> str:
+    return ", ".join(NOMI_PROGRAMMI.get(v, v).replace("SicurCantiere ", "") for v in (valore or "").split(",") if v)
+
+
 def _stessa_rete(a: str, b: str) -> bool:
     try:
         ia, ib = ipaddress.ip_address(a), ipaddress.ip_address(b)
@@ -320,7 +334,8 @@ def attiva(conn, dati: dict, ip: str = "", ora: datetime | None = None, offline:
         conn.execute("UPDATE pc_licenza SET impronta_sistema = ?, impronta_hardware = ?, impronta_nome = ?, "
                      "nome = ?, programma = ?, versione = ?, ultimo_uso = ?, ultimo_ip = ?, "
                      "offline = ? WHERE id = ?",
-                     (*impronte, nome or stesso["nome"], programma, versione, ora.isoformat(), ip, int(offline),
+                     (*impronte, nome or stesso["nome"], programmi_usati(stesso["programma"], programma), versione,
+                      ora.isoformat(), ip, int(offline),
                       stesso["id"]))
         registra(conn, "attivazione", "stesso_pc", radice, stesso["codice_pc"], ip, nome, ora)
         pc = conn.execute("SELECT * FROM pc_licenza WHERE id = ?", (stesso["id"],)).fetchone()
@@ -342,7 +357,8 @@ def attiva(conn, dati: dict, ip: str = "", ora: datetime | None = None, offline:
     conn.execute("INSERT INTO pc_licenza (codice_pc, radice_id, sale, impronta_sistema, impronta_hardware, "
                  "impronta_nome, nome, programma, versione, attivato, ultimo_uso, ultimo_ip, offline) "
                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                 (codice_pc, radice, sale, *impronte, nome, programma, versione, ora.isoformat(), ora.isoformat(),
+                 (codice_pc, radice, sale, *impronte, nome, programmi_usati("", programma), versione, ora.isoformat(),
+                  ora.isoformat(),
                   ip, int(offline)))
     registra(conn, "attivazione", "nuovo_pc", radice, codice_pc, ip, nome + (" (offline)" if offline else ""), ora)
     pc = conn.execute("SELECT * FROM pc_licenza WHERE codice_pc = ?", (codice_pc,)).fetchone()
@@ -380,8 +396,9 @@ def convalida(conn, dati: dict, ip: str = "", ora: datetime | None = None) -> di
         sospetto = f"{ora:%d/%m/%Y %H:%M}: in uso da {pc['ultimo_ip']} e {ip} a pochi minuti di distanza"
         registra(conn, "sospetto_clone", "", pc["radice_id"], pc["codice_pc"], ip, sospetto, ora)
     conn.execute("UPDATE pc_licenza SET impronta_sistema = ?, impronta_hardware = ?, impronta_nome = ?, "
-                 "ultimo_uso = ?, ultimo_ip = ?, versione = ?, offline = 0, sospetto = ? WHERE id = ?",
-                 (*impronte, ora.isoformat(), ip, _testo(dati, "versione", 40) or pc["versione"], sospetto, pc["id"]))
+                 "ultimo_uso = ?, ultimo_ip = ?, versione = ?, offline = 0, sospetto = ?, programma = ? WHERE id = ?",
+                 (*impronte, ora.isoformat(), ip, _testo(dati, "versione", 40) or pc["versione"], sospetto,
+                  programmi_usati(pc["programma"], _testo(dati, "programma", 20)), pc["id"]))
     pc = conn.execute("SELECT * FROM pc_licenza WHERE id = ?", (pc["id"],)).fetchone()
     testo = _certificato(conn, attuale, pc, ora)
     if stato_licenza(attuale, ora.date()) == REVOCATA:
@@ -485,6 +502,7 @@ def scheda(conn, radice: int, ora: datetime | None = None, con_verifiche: bool =
                            (radice, *RIFIUTI, (ora - timedelta(days=30)).isoformat())).fetchone()
     return {
         "radice": radice, "attuale": attuale, "posti": posti(attuale, dati), "postazioni": attuale["postazioni"],
+        "programmi": nomi_programmi(",".join(v for v in ORDINE_PROGRAMMI if v in prodotti(attuale))),
         "posti_extra": dati["posti_extra"], "attivi": pc_attivi(conn, radice),
         "disattivati": conn.execute("SELECT * FROM pc_licenza WHERE radice_id = ? AND stato != 'attivo' "
                                     "ORDER BY disattivato DESC LIMIT 10", (radice,)).fetchall(),
