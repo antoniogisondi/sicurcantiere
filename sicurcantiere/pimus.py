@@ -108,10 +108,13 @@ def chiave_testo(ponteggio_id: int, sezione: str) -> str:
     return f"pimus:{ponteggio_id}:{sezione}"
 
 
-def avvisi(ponteggio: dict[str, Any]) -> list[str]:
-    """Obblighi e incongruenze del ponteggio da segnalare all'utente e nel documento."""
+def avvisi(ponteggio: dict[str, Any], addetti: list[dict[str, Any]] | None = None) -> list[str]:
+    """Obblighi e incongruenze del ponteggio da segnalare all'utente e nel documento. Con la squadra
+    (`addetti`) si controllano anche il preposto e la formazione di ciascuno."""
+    from sicurcantiere import ponteggio as P
+
     messaggi = []
-    altezza = float(ponteggio.get("altezza") or 0)
+    altezza = max(float(ponteggio.get("altezza") or 0), P.altezza_massima(ponteggio))
     if altezza > ALTEZZA_SENZA_PROGETTO or not ponteggio.get("conforme_schemi", 1):
         motivo = (f"altezza superiore a {ALTEZZA_SENZA_PROGETTO:g} m" if altezza > ALTEZZA_SENZA_PROGETTO
                   else "configurazione non conforme agli schemi tipo del libretto")
@@ -122,8 +125,29 @@ def avvisi(ponteggio: dict[str, Any]) -> list[str]:
             messaggi.append("Indicare il progettista del ponteggio.")
     if not str(ponteggio.get("autorizzazione", "")).strip():
         messaggi.append("Indicare gli estremi dell'autorizzazione ministeriale del ponteggio (art. 131).")
-    if not str(ponteggio.get("preposto", "")).strip():
+    if addetti:
+        messaggi += P.avvisi_squadra(addetti)
+    elif not str(ponteggio.get("preposto", "")).strip():
         messaggi.append("Indicare il preposto alle operazioni di montaggio e smontaggio (art. 136, comma 6).")
     if not ponteggio.get("impresa_id"):
         messaggi.append("Indicare l'impresa che esegue il montaggio.")
+    if "geometria" in ponteggio:
+        messaggi += P.avvisi_geometria(ponteggio)
     return messaggi
+
+
+def avvisi_ponteggio(repo, ponteggio: dict[str, Any]) -> list[str]:
+    return avvisi(ponteggio, repo.elenco("addetti_ponteggio", ponteggio_id=ponteggio["id"]))
+
+
+TIPI_ALLEGATO = [
+    "Disegno esecutivo",
+    "Progetto (calcolo e disegno)",
+    "Libretto del fabbricante",
+    "Autorizzazione ministeriale",
+    "Schema degli ancoraggi",
+    "Prove di tenuta degli ancoraggi",
+    "Attestati di formazione",
+    "Foto",
+    "Altro",
+]

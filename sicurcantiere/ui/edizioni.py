@@ -252,7 +252,7 @@ def controlla_pimus(repo: Repository) -> list[controlli.Segnalazione]:
     if not ponteggi:
         segnalazioni.append(controlli.Segnalazione(controlli.ERRORE, "Ponteggi", "Inserire almeno un ponteggio."))
     for p in ponteggi:
-        for messaggio in pimus.avvisi(p):
+        for messaggio in pimus.avvisi_ponteggio(repo, p):
             segnalazioni.append(controlli.Segnalazione(controlli.AVVISO, p["nome"] or "Ponteggio", messaggio))
     return segnalazioni
 

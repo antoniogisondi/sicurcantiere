@@ -438,6 +438,34 @@ MIGRAZIONI: list[str] = [
     """
     UPDATE cantiere SET costo_uomo_giorno = 0 WHERE costo_uomo_giorno = 250;
     """,
+    # v0.24: PiMUS. Squadra di montaggio con la formazione di ciascuno (Allegato XXI), file allegati al piano
+    # (disegno esecutivo, libretto, autorizzazione...), geometria del ponteggio per lo schema grafico, le
+    # quantità e le verifiche (JSON). Preposto e addetti scritti come testo passano nella squadra.
+    """
+    ALTER TABLE ponteggi ADD COLUMN geometria TEXT NOT NULL DEFAULT '{}';
+    CREATE TABLE addetti_ponteggio (
+        id INTEGER PRIMARY KEY,
+        ponteggio_id INTEGER NOT NULL REFERENCES ponteggi(id) ON DELETE CASCADE,
+        lavoratore_id INTEGER REFERENCES lavoratori(id) ON DELETE SET NULL,
+        nome TEXT NOT NULL DEFAULT '',
+        ruolo TEXT NOT NULL DEFAULT 'Addetto al montaggio',
+        corso_data TEXT,
+        corso_ente TEXT NOT NULL DEFAULT '',
+        aggiornamento_data TEXT,
+        note TEXT NOT NULL DEFAULT ''
+    );
+    INSERT INTO addetti_ponteggio (ponteggio_id, nome, ruolo)
+        SELECT id, trim(preposto), 'Preposto' FROM ponteggi WHERE trim(preposto) <> '';
+    INSERT INTO addetti_ponteggio (ponteggio_id, nome)
+        SELECT id, trim(squadra) FROM ponteggi WHERE trim(squadra) <> '';
+    CREATE TABLE allegati_ponteggio (
+        id INTEGER PRIMARY KEY,
+        ponteggio_id INTEGER NOT NULL REFERENCES ponteggi(id) ON DELETE CASCADE,
+        tipo TEXT NOT NULL DEFAULT 'Disegno esecutivo',
+        titolo TEXT NOT NULL DEFAULT '',
+        file TEXT NOT NULL DEFAULT ''
+    );
+    """,
 ]
 
 VERSIONE_SCHEMA = len(MIGRAZIONI)

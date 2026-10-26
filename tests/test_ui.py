@@ -435,6 +435,35 @@ def test_programma_pimus(app, tmp_path):
     assert len(repo.elenco("verifiche_ponteggio", ponteggio_id=pid)) > 10
     assert repo.testo(pimus.chiave_testo(pid, "uso")).startswith("È vietato")
     assert f._pagina_principale() is pp
+
+    # disegno: lati, tipologia e ancoraggi a mano dal prospetto
+    from sicurcantiere import ponteggio as P
+
+    g = pp.geometria
+    g.lati.item(0, 1).setText("18")
+    g._aggiungi_lato()
+    g.tipo.setCurrentIndex(g.tipo.findData("Tubi e giunti"))
+    salvato = repo.leggi("ponteggi", pid)
+    assert salvato["tipo"] == "Tubi e giunti" and salvato["lunghezza"] == 28
+    assert [l["nome"] for l in P.geometria(salvato)["lati"]] == ["Ponteggio di facciata", "Est"]
+    g.vista.nodo.emit(0, 1, 1)
+    assert [1, 1] in P.geometria(repo.leggi("ponteggi", pid))["lati"][0]["aggiunti"]
+    g.lati.item(1, 3).setCheckState(QtCore.Qt.CheckState.Unchecked)
+    assert P.geometria(repo.leggi("ponteggi", pid))["lati"][1]["mantovana"] is False
+    for n in range(g.gruppo.buttons().__len__()):
+        g.gruppo.button(n).click()
+        g.vista.grab()  # ogni vista si disegna senza errori
+    pp.schede.setCurrentWidget(pp.calcoli)
+    assert "ancoraggi" in pp.calcoli.ancoraggi.text() and pp.calcoli.elementi.rowCount() > 5
+
+    # squadra dai lavoratori dell'impresa
+    impresa = repo.inserisci("imprese", ragione_sociale="Edil")
+    repo.aggiorna("ponteggi", pid, impresa_id=impresa)
+    repo.inserisci("lavoratori", impresa_id=impresa, nome="Luca", cognome="Bianchi", mansione="Preposto")
+    pp.aggiungi_lavoratori(repo.elenco("lavoratori", impresa_id=impresa))
+    addetti = repo.elenco("addetti_ponteggio", ponteggio_id=pid)
+    assert [(a["nome"], a["ruolo"]) for a in addetti] == [("Luca Bianchi", P.PREPOSTO)]
+    assert "Luca Bianchi: indicare la data del corso" in pp.avvisi.text()
     f.close()
 
 

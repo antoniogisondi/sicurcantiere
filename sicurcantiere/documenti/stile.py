@@ -540,6 +540,41 @@ def immagine(doc, percorso: str | Path, larghezza_cm: float = 12, didascalia: st
     return True
 
 
+def immagine_png(doc, dati: bytes, larghezza_cm: float, didascalia: str = "") -> None:
+    """Immagine da dati PNG (disegni generati, pagine di PDF), centrata, con didascalia facoltativa."""
+    import io
+
+    doc.add_picture(io.BytesIO(dati), width=Cm(larghezza_cm))
+    doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if didascalia:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(p, didascalia, 8, TESTO3)
+
+
+def file_allegato(doc, percorso: str | Path, dove_ricollegarlo: str) -> None:
+    """Immagine o pagine di un PDF inserite nel documento; avviso se il file manca o non si legge."""
+    from sicurcantiere.documenti.immagini import pagine_pdf
+
+    percorso = Path(percorso)
+    if not percorso.is_file():
+        nota(doc, f"File non trovato: {percorso}. Ricollegarlo {dove_ricollegarlo}.", avviso=True)
+        return
+    if percorso.suffix.lower() == ".pdf":
+        try:
+            pagine = pagine_pdf(percorso)
+        except Exception:  # noqa: BLE001 - PDF non leggibile
+            pagine = []
+        if not pagine:
+            nota(doc, f"Il file PDF {percorso.name} non può essere inserito nel documento: allegarlo "
+                      "separatamente.", avviso=True)
+        for k, (dati, orizzontale) in enumerate(pagine):
+            immagine_png(doc, dati, LARGHEZZA_UTILE if orizzontale else 15.5,
+                         f"{percorso.name} · pagina {k + 1} di {len(pagine)}" if len(pagine) > 1 else "")
+    elif not immagine(doc, percorso, LARGHEZZA_UTILE):
+        nota(doc, f"Immagine non leggibile: {percorso}.", avviso=True)
+
+
 def griglia_immagini(doc, voci: list[tuple[Path, str]], colonne: int = 4, lato_cm: float = 2.6,
                      dimensione_testo: float = 7) -> None:
     """Immagini con didascalia disposte in griglia (cartelli, DPI)."""

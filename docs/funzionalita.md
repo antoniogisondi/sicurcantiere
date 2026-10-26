@@ -175,9 +175,42 @@ programma apre anche i file degli altri: per esempio il POS può partire dal fil
 ### PiMUS
 - Dati del ponteggio, testi base per tutte le sezioni e verifiche prima del montaggio e durante
   l'uso.
-- Avviso automatico quando serve il progetto (art. 133).
-- Documento nella stessa impaginazione di PSC e POS, in verde: copertina con le firme, capitoli
-  dell'Allegato XXII, dati mancanti evidenziati, esiti delle verifiche colorati.
+- Avviso automatico quando serve il progetto (art. 133), anche quando un solo lato supera i 20 m.
+- **Disegno del ponteggio** (scheda «Disegno»): il ponteggio si crea da zero e si modifica con i
+  dati. Si inseriscono:
+  - la tipologia (telai prefabbricati, tubi e giunti, montanti e traversi, multidirezionale);
+  - la forma: lati in sequenza (facciata, a L, a U) oppure perimetro chiuso;
+  - per ogni lato la lunghezza, l'altezza se diversa e la mantovana sì/no;
+  - campata, larghezza degli impalcati, interpiano e distanza dalla facciata;
+  - la maglia degli ancoraggi (ogni N campate e N livelli, a rombo o allineati), la mantovana e i
+    teli.
+
+  Lo schema si aggiorna mentre si scrive:
+  - vista **3D** che si ruota trascinando, si ingrandisce con la rotellina e si sposta con il tasto
+    destro;
+  - **pianta**;
+  - **prospetto** di ogni lato, dove un clic su un nodo aggiunge o toglie un ancoraggio;
+  - **sezione tipo**.
+
+  Disegnato con Qt, senza librerie CAD da installare.
+- **Calcoli e quantità** (stime, prevalgono il libretto e il progetto):
+  - numero di ancoraggi e m² di facciata per ancoraggio, con avviso oltre i 22 m²;
+  - carico sul montante più caricato (peso proprio, più la classe di carico UNI EN 12811-1 su un
+    impalcato pieno e su quello adiacente al 50%) e pressione sul terreno, confrontate con la
+    portanza; se la pressione supera la portanza, l'avviso indica la ripartizione minima;
+  - elenco indicativo degli elementi per tipologia.
+- **Squadra di montaggio** con la formazione di ciascuno: corso da 28 ore e aggiornamento ogni 4
+  anni (Allegato XXI e Accordo Stato-Regioni del 17/04/2025). Gli avvisi segnalano corso mancante,
+  aggiornamento scaduto, preposto o addetti mancanti. I nomi si possono prendere dai lavoratori
+  dell'impresa.
+- **Allegati** (disegno esecutivo, progetto, libretto, autorizzazione, schema e prove degli
+  ancoraggi, attestati, foto): immagini e PDF entrano in coda al documento.
+- Documento nella stessa impaginazione di PSC e POS, in verde:
+  - copertina con le firme e capitoli dell'Allegato XXII;
+  - tabella della squadra con la scadenza della formazione;
+  - geometria, elementi, schema degli ancoraggi e verifica dell'appoggio;
+  - schema grafico (vista d'insieme, pianta, prospetti, sezione) e allegati;
+  - dati mancanti evidenziati ed esiti delle verifiche colorati.
 
 ### Documenti brevi
 - Verbale di consegna dei DPI, tesserini di riconoscimento (a tessera, con barra colorata e

@@ -12,6 +12,7 @@ from pathlib import Path
 from docx import Document
 
 from sicurcantiere import anagrafiche, pimus
+from sicurcantiere import ponteggio as P
 from sicurcantiere.documenti import stile
 from sicurcantiere.documenti.comune import data_it, indirizzo_cantiere, salva
 from sicurcantiere.documenti.composizione import CONSIGLIATO, OBBLIGATORIO, Manca
@@ -29,6 +30,10 @@ def _misura(valore: float) -> str:
     return f"{valore:g} m".replace(".", ",") if valore else ""
 
 
+def _data(valore) -> str:
+    return data_it(valore) if valore else ""
+
+
 def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Path:
     p = repo.leggi("ponteggi", ponteggio_id)
     if p is None:
@@ -39,7 +44,14 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
     titoli = {chiave: titolo for chiave, titolo, _ in pimus.SEZIONI}
     comune = f"{c['comune']} ({c['provincia']})" if c["provincia"] else c["comune"]
     data_documento = data_it(date.today())
-    progetto_richiesto = p["altezza"] > pimus.ALTEZZA_SENZA_PROGETTO or not p["conforme_schemi"]
+    g = P.geometria(p)
+    lati = P.lati(p, g)
+    altezza = max(p["altezza"], P.altezza_massima(p, g))
+    progetto_richiesto = altezza > pimus.ALTEZZA_SENZA_PROGETTO or not p["conforme_schemi"]
+    addetti = [a for a in repo.elenco("addetti_ponteggio", ponteggio_id=ponteggio_id) if a["nome"].strip()]
+    preposti = [a["nome"] for a in addetti if a["ruolo"] == P.PREPOSTO]
+    preposto = ", ".join(preposti) or p["preposto"]
+    allegati = repo.elenco("allegati_ponteggio", ponteggio_id=ponteggio_id)
 
     doc = Document()
     stile.imposta_stili(doc)
@@ -55,13 +67,13 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
               ("Tipologia", p["tipo"])],
         data_luogo=f"{c['comune'] or ''}, {data_documento}".strip(", "),
         firme=[("Il datore di lavoro dell'impresa che esegue il montaggio", impresa.get("datore_lavoro", "")),
-               ("Il preposto alle operazioni", p["preposto"])],
+               ("Il preposto alle operazioni", preposto)],
         impresa=[impresa.get("ragione_sociale") or c["nome"] or "Ponteggio", anagrafiche.sede(impresa)
                  if impresa else ""],
         logo=impresa.get("logo", ""),
     )
 
-    avvisi = pimus.avvisi(p)
+    avvisi = pimus.avvisi(p, addetti)
     if avvisi:
         stile.banda(doc, "Avvertenze")
         for avviso in avvisi:
@@ -84,13 +96,23 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
     ])
 
     stile.capitolo(doc, "Squadra di lavoratori e preposto", "Allegato XXII, punto 3, e art. 136, comma 6")
-    stile.scheda(doc, [
-        ("Preposto alle operazioni", p["preposto"] or Manca("preposto al montaggio", PONTEGGI)),
-        ("Addetti al montaggio", p["squadra"] or Manca("addetti al montaggio", PONTEGGI)),
-    ])
+    if addetti:
+        stile.tabella_colorata(
+            doc, ["Nome e cognome", "Ruolo", "Corso (data ed ente)", "Ultimo aggiornamento", "Valido fino al"],
+            [[a["nome"], a["ruolo"], " · ".join(v for v in (_data(a["corso_data"]), a["corso_ente"]) if v) or "—",
+              _data(a["aggiornamento_data"]) or "—",
+              data_it(P.scadenza_formazione(a)) if P.scadenza_formazione(a) else "da indicare"] for a in addetti],
+            8.5, larghezze=[4.4, 3.4, 4.2, 2.8, 2.6])
+        if not preposti:
+            stile.testo(doc, "", "preposto alle operazioni", PONTEGGI, OBBLIGATORIO)
+    else:
+        stile.scheda(doc, [
+            ("Preposto alle operazioni", p["preposto"] or Manca("preposto al montaggio", PONTEGGI)),
+            ("Addetti al montaggio", p["squadra"] or Manca("addetti al montaggio", PONTEGGI)),
+        ])
     doc.add_paragraph("Gli addetti al montaggio, alla trasformazione e allo smontaggio hanno frequentato il corso "
-                      "di formazione previsto dall'Allegato XXI (art. 136, comma 6) e operano sotto la diretta "
-                      "sorveglianza del preposto.")
+                      "di formazione previsto dall'Allegato XXI (art. 136, comma 6), di 28 ore, con aggiornamento "
+                      "di almeno 4 ore ogni 4 anni, e operano sotto la diretta sorveglianza del preposto.")
 
     stile.capitolo(doc, "Identificazione del ponteggio", "Allegato XXII, punto 4")
     stile.scheda(doc, [
@@ -99,10 +121,24 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
         ("Modello", p["modello"]),
         ("Autorizzazione ministeriale", p["autorizzazione"] or Manca("autorizzazione ministeriale (art. 131)",
                                                                      PONTEGGI)),
-        ("Altezza massima", _misura(p["altezza"]) or Manca("altezza massima", PONTEGGI)),
-        ("Sviluppo in pianta", _misura(p["lunghezza"])),
-        ("Classe / sovraccarico ammesso", p["classe_carico"] or Manca("classe di carico", PONTEGGI, CONSIGLIATO)),
+        ("Altezza massima", _misura(altezza) or Manca("altezza massima", PONTEGGI)),
+        ("Sviluppo in pianta", _misura(P.sviluppo(g))),
+        ("Classe di carico degli impalcati", p["classe_carico"] or Manca("classe di carico", PONTEGGI, CONSIGLIATO)),
+        ("Campata e larghezza", f"campata {_misura(g['campata'])}, impalcato largo {_misura(g['larghezza'])}"),
+        ("Impalcati", f"ogni {_misura(g['interpiano'])}, " + "; ".join(
+            f"{l.nome}: {l.livelli} ({l.campate} campate)" for l in lati)),
+        ("Distanza dalla facciata", _misura(g["distanza"]) + (" (parapetto anche sul lato interno)"
+                                                              if g["distanza"] > P.DISTANZA_MASSIMA else "")),
+        ("Mantovana parasassi", f"all'impalcato a {_misura(g['mantovana_livello'] * g['interpiano'])}: "
+                                + ", ".join(l.nome for l in lati if l.mantovana) if any(l.mantovana for l in lati)
+         else "non prevista"),
     ])
+    stile.sezione(doc, "Elementi del ponteggio")
+    stile.tabella_colorata(doc, ["Elemento", "Quantità indicativa"],
+                           [[nome, f"{q:g} {u}".replace(".", ",")] for nome, q, u in P.elementi(p, g)], 8.5,
+                           larghezze=[11.4, 6.0])
+    stile.nota(doc, "Quantità stimate dalla geometria: gli elementi effettivi e il loro numero sono quelli degli schemi "
+                    "del libretto del fabbricante.")
 
     stile.capitolo(doc, "Disegno esecutivo e progetto", "Allegato XXII, punto 5, e artt. 132-133")
     if progetto_richiesto:
@@ -114,10 +150,20 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
         doc.add_paragraph("Il ponteggio è montato secondo gli schemi tipo del libretto del fabbricante; il disegno "
                           "esecutivo, firmato dal responsabile del cantiere, riporta sovraccarichi ammessi, appoggi "
                           "e ancoraggi ed è allegato al presente piano (art. 132).")
+    a = P.ancoraggi(p, g)
+    s = P.appoggio(p, g)
     stile.scheda(doc, [
-        ("Ancoraggi", p["ancoraggi"] or Manca("tipo e maglia degli ancoraggi", PONTEGGI)),
+        ("Tipo di ancoraggi", p["ancoraggi"] or Manca("tipo degli ancoraggi", PONTEGGI)),
+        ("Schema degli ancoraggi", f"{a.numero} ancoraggi, {a.maglia}; {P._n(a.area_per_ancoraggio, 1)} m² di "
+                                   f"facciata per ancoraggio"),
         ("Piano di appoggio", p["piano_appoggio"] or Manca("piano di appoggio", PONTEGGI)),
+        ("Verifica dell'appoggio", f"carico stimato sul montante più caricato {P._n(s.carico_montante, 2)} kN; "
+                                   f"pressione {P._n(s.pressione)} kPa su {P._n(g['area_appoggio'], 2)} m² di "
+                                   f"ripartizione, portanza assunta {P._n(s.portanza)} kPa: "
+                                   + ("verificata" if s.verificato else
+                                      f"non verificata, ripartizione minima {P._n(s.area_minima, 2)} m²")),
     ])
+    _schemi(doc, p)
 
     stile.capitolo(doc, "Indicazioni generali per montaggio, trasformazione e smontaggio", "Allegato XXII, punto 6")
     for chiave in ("stoccaggio", "appoggio", "tracciamento", "dpi", "sollevamento", "ancoraggi", "meteo",
@@ -150,8 +196,36 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
     p_data = doc.add_paragraph(f"{c['comune'] or ''}, {data_documento}".strip(", "))
     stile._spaziatura(p_data, 14, 8)
     stile.firme(doc, [("Il datore di lavoro dell'impresa che esegue il montaggio", impresa.get("datore_lavoro", "")),
-                      ("Il preposto alle operazioni", p["preposto"])])
+                      ("Il preposto alle operazioni", preposto)])
     stile.nota(doc, "Il PiMUS è redatto da persona competente e messo a disposizione del preposto e dei lavoratori "
                     "addetti; una copia, con il disegno esecutivo e il libretto del fabbricante, è tenuta in "
                     "cantiere a disposizione dell'organo di vigilanza (art. 136, comma 1).")
+    _allegati(doc, allegati)
     return salva(doc, destinazione)
+
+
+def _schemi(doc, p) -> None:
+    """Schema grafico generato dalla geometria: vista d'insieme, pianta, prospetti e sezione tipo."""
+    from sicurcantiere import disegno_ponteggio
+
+    try:
+        tavole = disegno_ponteggio.tavole(p)
+    except Exception:  # noqa: BLE001 - senza Qt il documento si genera lo stesso, senza disegni
+        return
+    stile.sezione(doc, "Schema grafico del ponteggio")
+    stile.nota(doc, "Schema generato dai dati del ponteggio, con gli ancoraggi in rosso: va verificato sul libretto "
+                    "del fabbricante e completato nel disegno esecutivo firmato dal responsabile del cantiere.")
+    for tavola in tavole:
+        stile.immagine_png(doc, tavola.png, stile.LARGHEZZA_UTILE if tavola.orizzontale else 11.5, tavola.titolo)
+
+
+def _allegati(doc, allegati) -> None:
+    if not allegati:
+        return
+    stile.capitolo(doc, "Allegati", "art. 134 e art. 136, comma 1", nuova_pagina=True)
+    stile.tabella_colorata(doc, ["N.", "Tipo", "Titolo"], [[str(n), a["tipo"], a["titolo"]]
+                                                          for n, a in enumerate(allegati, 1)], 8.5,
+                           larghezze=[1.2, 6.0, 10.2])
+    for n, a in enumerate(allegati, 1):
+        stile.banda(doc, f"Allegato {n} · {a['tipo']}" + (f" · {a['titolo']}" if a["titolo"] else ""))
+        stile.file_allegato(doc, a["file"], "nella pagina «Ponteggi e PiMUS», scheda «Allegati»")

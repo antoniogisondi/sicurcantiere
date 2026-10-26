@@ -235,48 +235,18 @@ def _sezioni_testo(doc, testi: dict[str, str], chiavi: list[str], sottocapitoli:
                    f"{s.titolo}. {s.guida}")
 
 
-def _immagine_png(doc, dati: bytes, larghezza_cm: float, didascalia: str = "") -> None:
-    import io
-
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.shared import Cm
-
-    doc.add_picture(io.BytesIO(dati), width=Cm(larghezza_cm))
-    doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    if didascalia:
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        stile._run(p, didascalia, 8, stile.TESTO3)
+_immagine_png = stile.immagine_png
 
 
 def _tavole(doc, allegati: list[dict[str, Any]]) -> None:
     """Tavole allegate (immagini e pagine dei PDF), ognuna con il suo titolo."""
-    from sicurcantiere.documenti.immagini import pagine_pdf
-
     tavole = [a for a in allegati if a["tipo"] != TIPO_FOTO]
     if not tavole:
         return
     stile.capitolo(doc, "Tavole allegate", "Allegato XV punto 2.1.4", nuova_pagina=True)
     for n, a in enumerate(tavole, 1):
         stile.banda(doc, f"Tavola {n} · {a['tipo']}" + (f" · {a['titolo']}" if a["titolo"] else ""))
-        percorso = Path(a["file"])
-        if not percorso.is_file():
-            stile.nota(doc, f"File non trovato: {a['file']}. Ricollegarlo nella pagina «Relazione del PSC», scheda "
-                            "«Tavole, foto e logo».", avviso=True)
-            continue
-        if percorso.suffix.lower() == ".pdf":
-            try:
-                pagine = pagine_pdf(percorso)
-            except Exception:  # noqa: BLE001 - PDF non leggibile
-                pagine = []
-            if not pagine:
-                stile.nota(doc, f"Il file PDF {percorso.name} non può essere inserito nel documento: allegarlo "
-                                "separatamente.", avviso=True)
-            for k, (dati, orizzontale) in enumerate(pagine):
-                _immagine_png(doc, dati, stile.LARGHEZZA_UTILE if orizzontale else 15.5,
-                              f"{percorso.name} · pagina {k + 1} di {len(pagine)}" if len(pagine) > 1 else "")
-        elif not stile.immagine(doc, percorso, stile.LARGHEZZA_UTILE):
-            stile.nota(doc, f"Immagine non leggibile: {a['file']}.", avviso=True)
+        stile.file_allegato(doc, a["file"], "nella pagina «Relazione del PSC», scheda «Tavole, foto e logo»")
 
 
 def _rischi_per_rischio(doc, rischi: list[dict[str, Any]], nomi_fasi: dict[int, str]) -> None:
