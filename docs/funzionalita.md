@@ -4,7 +4,7 @@ Documento di riferimento del prodotto, da tenere aggiornato a ogni versione. Ser
 di vendita, per le presentazioni ai clienti e per non perdere le decisioni prese. Il dettaglio
 tecnico è nel [README](../README.md).
 
-*Ultimo aggiornamento: versione 0.24.0 (PiMUS con disegno del ponteggio in 3D e 2D, squadra con formazione, ancoraggi, carichi, elementi e allegati), ottobre 2026.*
+*Ultimo aggiornamento: versione 0.25.0 (PiMUS con ponteggio a tratti liberi, catalogo degli elementi, unione di ponteggi, autorizzazione ministeriale, archivio dei sistemi, esportazione DXF, testi per tipologia e rischi del montaggio), ottobre 2026.*
 
 ## Lo scopo
 
