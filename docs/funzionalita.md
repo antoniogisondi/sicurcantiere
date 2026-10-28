@@ -4,7 +4,7 @@ Documento di riferimento del prodotto, da tenere aggiornato a ogni versione. Ser
 di vendita, per le presentazioni ai clienti e per non perdere le decisioni prese. Il dettaglio
 tecnico è nel [README](../README.md).
 
-*Ultimo aggiornamento: versione 0.26.0 (PiMUS completato con il materiale di riferimento: redattore, contesto, conformità al PSC, sistemi anticaduta, situazioni particolari, verbale di consegna del ponteggio; POS con consegna e verifica degli artt. 100 e 101; PSC con i rischi del punto 2.2.3, contenuti della planimetria, aggiornamento e trasmissione del piano, lavori pubblici e art. 90, comma 11), ottobre 2026.*
+*Ultimo aggiornamento: versione 0.27.0 (PiMUS completo: registro dei controlli del ponteggio in uso, verbali di fine montaggio, consegna, trasformazione e smontaggio, duplicazione e modelli di ponteggio, PiMUS composto e salvato con bozza, emissione e revisioni), ottobre 2026.*
 
 ## Lo scopo
 
@@ -640,7 +640,11 @@ versioni uscite entro la fine degli aggiornamenti inclusi, le successive si apro
   - calcoli, quantità e ancoraggi sono stime per preparare il PiMUS: prevalgono libretto, schemi tipo e
     progetto, e il programma lo scrive;
   - nessun dato di autorizzazioni o libretti inventato: i sistemi si salvano nell'archivio dell'utente
-    dai dati reali che inserisce.
+    dai dati reali che inserisce;
+  - registro dei controlli senza scadenze inventate: l'art. 137 dice «a intervalli periodici» senza
+    fissare un numero di giorni, quindi il programma avvisa solo sugli esiti negativi e sui dati
+    mancanti, non sul tempo passato;
+  - registro e verbali restano al ponteggio montato: duplicando o salvando un modello non si copiano.
 
 ## Prossimi passi
 
