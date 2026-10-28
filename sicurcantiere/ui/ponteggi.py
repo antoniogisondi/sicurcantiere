@@ -50,7 +50,7 @@ class PaginaPonteggi(Pagina):
         self.tabella = TabellaCrud(repo, "ponteggi", [
             Colonna("nome", "Ponteggio / ubicazione", larghezza=220),
             Colonna("impresa_id", "Impresa che monta", "scelta", larghezza=190, scelte=self._imprese),
-            Colonna("tipo", "Tipologia", "scelta", larghezza=200,
+            Colonna("tipo", "Tipologia principale", "scelta", larghezza=200,
                     scelte=lambda: [(t, t) for t in pimus.TIPI_PONTEGGIO]),
             Colonna("altezza", "Altezza (m)", "decimale", larghezza=90, massimo=200),
             Colonna("lunghezza", "Sviluppo (m)", "decimale", larghezza=95, massimo=2000),
@@ -60,6 +60,7 @@ class PaginaPonteggi(Pagina):
         self.tabella.imposta_titolo("Ponteggi")
         genera = primario(QPushButton("Genera il PiMUS in Word..."))
         genera.clicked.connect(self._genera)
+        self.tabella.aggiungi_pulsante("Unisci un altro ponteggio...", self._unisci)
         self.tabella.pulsanti.insertWidget(2, genera)
         self.tabella.selezione_cambiata.connect(self._seleziona)
         self.tabella.modificata.connect(self._elenco_modificato)
@@ -69,15 +70,24 @@ class PaginaPonteggi(Pagina):
         self.avvisi.setStyleSheet("color: #D93B30;")
 
         self.dati = ModuloRecord(repo, "ponteggi", [
+            (None, "Sistema di ponteggio e autorizzazione ministeriale (art. 131)"),
             ("fabbricante", "Fabbricante"),
-            ("modello", "Modello"),
-            ("autorizzazione", "Autorizzazione ministeriale (n. e data)"),
+            ("sistema", "Nome commerciale del sistema"),
+            ("modello", "Modello o versione"),
+            ("autorizzazione", "Autorizzazione ministeriale (numero e protocollo)"),
+            ("aut_data", "Data dell'autorizzazione", "data"),
+            ("aut_rinnovo", "Ultimo rinnovo (ogni dieci anni)", "data"),
+            ("schemi_tipo", "Schemi tipo del libretto utilizzati", "testo_lungo"),
+            (None, "Carichi, ancoraggi e appoggio"),
             ("classe_carico", "Classe di carico degli impalcati", "scelta", [n for n, _ in P.CLASSI_CARICO]),
-            ("ancoraggi", "Tipo di ancoraggi (tasselli, anelli, cravatte...)"),
+            ("ancoraggi", "Descrizione degli ancoraggi (supporto, tasselli, prove di tenuta)"),
             ("piano_appoggio", "Piano di appoggio"),
             ("progettista", "Progettista (se è richiesto il progetto)"),
             ("sollevamento", "Attrezzature di sollevamento"),
             ("dpi", "DPI specifici"),
+            (None, "Linee elettriche aeree (art. 117 e Allegato IX)"),
+            ("linee_tensione", "Linea elettrica aerea vicina", "scelta", pimus.TENSIONI),
+            ("linee_distanza", "Distanza minima dal ponteggio", "decimale", " m"),
         ])
         for campo in self.dati.campi.values():
             if hasattr(campo, "editingFinished"):
@@ -174,7 +184,13 @@ class PaginaPonteggi(Pagina):
         basso = QWidget()
         lb = QVBoxLayout(basso)
         lb.setContentsMargins(0, 0, 0, 0)
-        lb.addWidget(self.avvisi)
+        # avvisi in un riquadro basso che scorre: il disegno sotto resta grande
+        self.riquadro_avvisi = QScrollArea()
+        self.riquadro_avvisi.setWidgetResizable(True)
+        self.riquadro_avvisi.setFrameShape(QFrame.Shape.NoFrame)
+        self.riquadro_avvisi.setWidget(self.avvisi)
+        self.riquadro_avvisi.setMaximumHeight(64)
+        lb.addWidget(self.riquadro_avvisi)
         lb.addWidget(self.schede)
         divisore = QSplitter(Qt.Orientation.Vertical)
         divisore.addWidget(self.tabella)
@@ -206,6 +222,8 @@ class PaginaPonteggi(Pagina):
         messaggi = pimus.avvisi_ponteggio(self.repo, p) if p else []
         self.avvisi.setText("\n".join(f"⚠ {m}" for m in messaggi))
         self.avvisi.setVisible(bool(messaggi))
+        self.riquadro_avvisi.setVisible(bool(messaggi))
+        self.riquadro_avvisi.setToolTip(self.avvisi.text())
 
     def _contesto_ai(self) -> str:
         p = self.repo.leggi("ponteggi", self.id_) if self.id_ is not None else {}
@@ -237,6 +255,53 @@ class PaginaPonteggi(Pagina):
             self.calcoli.carica(self.id_)
         elif self.schede.currentWidget() is self.geometria:
             self.geometria.carica(self.id_)
+
+    def _unisci(self) -> None:
+        """Porta in questo ponteggio i tratti, gli elementi, la squadra, le verifiche e gli allegati di un altro
+        ponteggio del cantiere, che poi viene eliminato: due parti della stessa opera diventano un solo ponteggio."""
+        if self.id_ is None:
+            return
+        altri = [p for p in self.repo.elenco("ponteggi") if p["id"] != self.id_]
+        if not altri:
+            QMessageBox.information(self, "Unisci ponteggi", "Nel cantiere non ci sono altri ponteggi da unire.")
+            return
+        from PySide6.QtWidgets import QInputDialog
+
+        nomi = [f"{p['nome'] or 'Ponteggio'} ({p['id']})" for p in altri]
+        scelta, ok = QInputDialog.getItem(self, "Unisci ponteggi", "Ponteggio da unire a questo:", nomi, 0, False)
+        if not ok:
+            return
+        altro = altri[nomi.index(scelta)]
+        risposta = QMessageBox.question(
+            self, "Unisci ponteggi",
+            f"I tratti, gli elementi, la squadra, le verifiche e gli allegati di «{altro['nome']}» passano in "
+            "questo ponteggio, poi «" + (altro["nome"] or "Ponteggio") + "» viene eliminato. Continuare?")
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        self.unisci(altro["id"])
+
+    def unisci(self, altro_id: int) -> None:
+        questo = self.repo.leggi("ponteggi", self.id_)
+        altro = self.repo.leggi("ponteggi", altro_id)
+        g, g_altro = P.geometria(questo), P.geometria(altro)
+        for t in g_altro["tratti"]:  # i tratti dell'altro mantengono la loro tipologia e altezza
+            t["tipo"] = t["tipo"] or altro["tipo"]
+            t["altezza"] = t["altezza"] or altro["altezza"]
+        g = P.unisci(g, g_altro, P.tratti(questo, g))
+        self.repo.aggiorna("ponteggi", self.id_, geometria=P.testo_geometria(g), lunghezza=P.sviluppo(g),
+                           altezza=max(questo["altezza"], altro["altezza"]))
+        for tabella in ("addetti_ponteggio", "verifiche_ponteggio", "allegati_ponteggio"):
+            presenti = {(r.get("nome") or r.get("voce") or r.get("file")) for r in
+                        self.repo.elenco(tabella, ponteggio_id=self.id_)}
+            for r in self.repo.elenco(tabella, ponteggio_id=altro_id):
+                if (r.get("nome") or r.get("voce") or r.get("file")) in presenti:
+                    continue  # stesso addetto, stessa verifica o stesso file: non si duplica
+                self.repo.aggiorna(tabella, r["id"], ponteggio_id=self.id_)
+        self.repo.elimina("ponteggi", altro_id)
+        id_ = self.id_
+        self.tabella.ricarica()
+        self.tabella.seleziona(id_)
+        self._seleziona(id_)
 
     def _dai_lavoratori(self) -> None:
         """Aggiunge alla squadra i lavoratori dell'impresa che monta il ponteggio, scelti da un elenco."""
@@ -305,7 +370,7 @@ class PaginaPonteggi(Pagina):
         if self.id_ is None:
             return
         esistenti = {v["voce"] for v in self.repo.elenco("verifiche_ponteggio", ponteggio_id=self.id_)}
-        for momento, voce in pimus.VERIFICHE:
+        for momento, voce in pimus.verifiche_per(P.tipologie(self.repo.leggi("ponteggi", self.id_))):
             if voce not in esistenti:
                 self.repo.inserisci("verifiche_ponteggio", ponteggio_id=self.id_, momento=momento, voce=voce)
         self.verifiche.ricarica()

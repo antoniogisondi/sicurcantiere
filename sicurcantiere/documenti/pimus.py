@@ -12,6 +12,7 @@ from pathlib import Path
 from docx import Document
 
 from sicurcantiere import anagrafiche, pimus
+from sicurcantiere import elementi_ponteggio as E
 from sicurcantiere import ponteggio as P
 from sicurcantiere.documenti import stile
 from sicurcantiere.documenti.comune import data_it, indirizzo_cantiere, salva
@@ -64,7 +65,7 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
         riferimento="D.Lgs. 9 aprile 2008, n. 81 · art. 136 e Allegato XXII",
         voci=[("Cantiere", indirizzo_cantiere(c) or Manca("indirizzo del cantiere", CANTIERE)),
               ("Ponteggio", p["nome"] or Manca("ubicazione del ponteggio", PONTEGGI)),
-              ("Tipologia", p["tipo"])],
+              ("Tipologia", ", ".join(P.tipologie(p, g)))],
         data_luogo=f"{c['comune'] or ''}, {data_documento}".strip(", "),
         firme=[("Il datore di lavoro dell'impresa che esegue il montaggio", impresa.get("datore_lavoro", "")),
                ("Il preposto alle operazioni", preposto)],
@@ -115,24 +116,39 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
                       "di almeno 4 ore ogni 4 anni, e operano sotto la diretta sorveglianza del preposto.")
 
     stile.capitolo(doc, "Identificazione del ponteggio", "Allegato XXII, punto 4")
+    scadenza = pimus.scadenza_autorizzazione(p)
     stile.scheda(doc, [
-        ("Tipologia", p["tipo"] or Manca("tipologia del ponteggio", PONTEGGI)),
+        ("Tipologia", ", ".join(P.tipologie(p, g)) or Manca("tipologia del ponteggio", PONTEGGI)),
         ("Fabbricante", p["fabbricante"] or Manca("fabbricante", PONTEGGI)),
-        ("Modello", p["modello"]),
+        ("Sistema", " · ".join(v for v in (p.get("sistema", ""), p["modello"]) if v)),
         ("Autorizzazione ministeriale", p["autorizzazione"] or Manca("autorizzazione ministeriale (art. 131)",
                                                                      PONTEGGI)),
+        ("Data e rinnovo", " · ".join(v for v in (
+            f"rilasciata il {data_it(p['aut_data'])}" if p.get("aut_data") else "",
+            f"rinnovata il {data_it(p['aut_rinnovo'])}" if p.get("aut_rinnovo") else "",
+            f"valida fino al {data_it(scadenza)}" if scadenza else "") if v)),
+        ("Schemi tipo utilizzati", p.get("schemi_tipo", "")),
         ("Altezza massima", _misura(altezza) or Manca("altezza massima", PONTEGGI)),
         ("Sviluppo in pianta", _misura(P.sviluppo(g))),
         ("Classe di carico degli impalcati", p["classe_carico"] or Manca("classe di carico", PONTEGGI, CONSIGLIATO)),
-        ("Campata e larghezza", f"campata {_misura(g['campata'])}, impalcato largo {_misura(g['larghezza'])}"),
-        ("Impalcati", f"ogni {_misura(g['interpiano'])}, " + "; ".join(
-            f"{l.nome}: {l.livelli} ({l.campate} campate)" for l in lati)),
-        ("Distanza dalla facciata", _misura(g["distanza"]) + (" (parapetto anche sul lato interno)"
-                                                              if g["distanza"] > P.DISTANZA_MASSIMA else "")),
+        ("Interpiano", _misura(g["interpiano"])),
         ("Mantovana parasassi", f"all'impalcato a {_misura(g['mantovana_livello'] * g['interpiano'])}: "
                                 + ", ".join(l.nome for l in lati if l.mantovana) if any(l.mantovana for l in lati)
          else "non prevista"),
     ])
+    stile.sezione(doc, "Tratti del ponteggio")
+    stile.tabella_colorata(
+        doc, ["Tratto", "Tipologia", "Facciata", "Campate", "Impalcati", "Larghezza", "Distanza", "Quota"],
+        [[t.nome, t.tipo, _misura(t.lunghezza), f"{t.campate} × {_misura(t.campata)}",
+          f"{t.livelli} (h {_misura(t.livelli * t.interpiano)})", _misura(t.larghezza), _misura(t.distanza) or "0 m",
+          f"{t.quota:+.2f} m".replace(".", ",")] for t in lati], 8, larghezze=[3.2, 2.8, 1.9, 2.3, 2.4, 1.7, 1.6, 1.5])
+    inseriti = g["elementi"]
+    if inseriti:
+        stile.sezione(doc, "Elementi inseriti e personalizzazioni")
+        stile.tabella_colorata(doc, ["Elemento", "Posizione", "Quantità", "Note"],
+                               [[E.voce(e["tipo"]).nome, E.descrizione(e, lati[e["tratto"]].nome),
+                                 f"{E.quantita(e, lati[e['tratto']].campata, g['interpiano']):g}".replace(".", ","),
+                                 e["note"]] for e in inseriti], 8, larghezze=[5.4, 5.6, 1.8, 4.6])
     stile.sezione(doc, "Elementi del ponteggio")
     stile.tabella_colorata(doc, ["Elemento", "Quantità indicativa"],
                            [[nome, f"{q:g} {u}".replace(".", ",")] for nome, q, u in P.elementi(p, g)], 8.5,
@@ -140,48 +156,65 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
     stile.nota(doc, "Quantità stimate dalla geometria: gli elementi effettivi e il loro numero sono quelli degli schemi "
                     "del libretto del fabbricante.")
 
-    stile.capitolo(doc, "Disegno esecutivo e progetto", "Allegato XXII, punto 5, e artt. 132-133")
+    stile.capitolo(doc, "Disegno esecutivo", "Allegato XXII, punto 5, e art. 134")
+    doc.add_paragraph("Il disegno esecutivo riporta le generalità e la firma del progettista o, quando il calcolo non è "
+                      "obbligatorio, della persona competente (art. 136, comma 1), i sovraccarichi massimi per metro "
+                      "quadrato di impalcato, gli appoggi e gli ancoraggi.")
+    a = P.ancoraggi(p, g)
+    s = P.appoggio(p, g)
+    stile.scheda(doc, [
+        ("Sovraccarico massimo", f"{P._n(s.sovraccarico, 2)} kN/m² per impalcato" + (
+            "" if P.sovraccarico(p["classe_carico"]) else " (da confermare con la classe di carico)")),
+        ("Tipo di ancoraggio", g["tipo_ancoraggio"]),
+        ("Descrizione degli ancoraggi", p["ancoraggi"] or Manca("descrizione degli ancoraggi", PONTEGGI)),
+        ("Schema degli ancoraggi", f"{a.numero} ancoraggi, {a.maglia}; {P._n(a.area_per_ancoraggio, 1)} m² di "
+                                   f"facciata per ancoraggio"),
+        ("Piano di appoggio", p["piano_appoggio"] or Manca("piano di appoggio", PONTEGGI)),
+        ("Verifica dell'appoggio", f"carico stimato sul montante più caricato ({s.tratto}) "
+                                   f"{P._n(s.carico_montante, 2)} kN; pressione {P._n(s.pressione)} kPa su "
+                                   f"{P._n(g['area_appoggio'], 2)} m² di ripartizione, portanza assunta "
+                                   f"{P._n(s.portanza)} kPa: "
+                                   + ("verificata" if s.verificato else
+                                      f"non verificata, ripartizione minima {P._n(s.area_minima, 2)} m²")),
+    ])
+    _schemi(doc, p)
+
+    stile.capitolo(doc, "Progetto del ponteggio", "Allegato XXII, punto 6, e artt. 132-133")
     if progetto_richiesto:
         doc.add_paragraph("Per il ponteggio è richiesto il progetto (art. 133), comprendente calcolo di resistenza "
                           "e stabilità e disegno esecutivo, firmato da un ingegnere o architetto abilitato e "
                           "allegato al presente piano.")
         stile.scheda(doc, [("Progettista", p["progettista"] or Manca("progettista abilitato", PONTEGGI))])
     else:
-        doc.add_paragraph("Il ponteggio è montato secondo gli schemi tipo del libretto del fabbricante; il disegno "
-                          "esecutivo, firmato dal responsabile del cantiere, riporta sovraccarichi ammessi, appoggi "
-                          "e ancoraggi ed è allegato al presente piano (art. 132).")
-    a = P.ancoraggi(p, g)
-    s = P.appoggio(p, g)
-    stile.scheda(doc, [
-        ("Tipo di ancoraggi", p["ancoraggi"] or Manca("tipo degli ancoraggi", PONTEGGI)),
-        ("Schema degli ancoraggi", f"{a.numero} ancoraggi, {a.maglia}; {P._n(a.area_per_ancoraggio, 1)} m² di "
-                                   f"facciata per ancoraggio"),
-        ("Piano di appoggio", p["piano_appoggio"] or Manca("piano di appoggio", PONTEGGI)),
-        ("Verifica dell'appoggio", f"carico stimato sul montante più caricato {P._n(s.carico_montante, 2)} kN; "
-                                   f"pressione {P._n(s.pressione)} kPa su {P._n(g['area_appoggio'], 2)} m² di "
-                                   f"ripartizione, portanza assunta {P._n(s.portanza)} kPa: "
-                                   + ("verificata" if s.verificato else
-                                      f"non verificata, ripartizione minima {P._n(s.area_minima, 2)} m²")),
-    ])
-    _schemi(doc, p)
+        doc.add_paragraph("Il ponteggio è montato secondo gli schemi tipo del libretto del fabbricante, entro i 20 m "
+                          "di altezza: il progetto non è richiesto (art. 133).")
 
-    stile.capitolo(doc, "Indicazioni generali per montaggio, trasformazione e smontaggio", "Allegato XXII, punto 6")
-    for chiave in ("stoccaggio", "appoggio", "tracciamento", "dpi", "sollevamento", "ancoraggi", "meteo",
-                   "istruzioni"):
-        stile.sezione(doc, titoli[chiave])
+    stile.capitolo(doc, "Indicazioni generali per montaggio, trasformazione e smontaggio",
+                   "Allegato XXII, punto 7 (piano di applicazione generalizzata)")
+    lettere = [("stoccaggio", "a"), ("appoggio", "b"), ("tracciamento", "c"), ("dpi", "d"), ("sollevamento", "e"),
+               ("linee_elettriche", "f"), ("ancoraggi", "g"), ("meteo", "h"), ("caduta_materiali", "i")]
+    for chiave, lettera in lettere:
+        stile.sezione(doc, f"{lettera}) {titoli[chiave]}")
         stile.testo(doc, testi[chiave], titoli[chiave], PONTEGGI, OBBLIGATORIO)
+        if chiave == "linee_elettriche" and p.get("linee_tensione"):
+            stile.scheda(doc, [("Linea elettrica aerea", p["linee_tensione"]),
+                               ("Distanza dal ponteggio", _misura(p.get("linee_distanza") or 0) or "da rilevare"),
+                               ("Distanza minima (Allegato IX)", _misura(pimus.distanza_minima(p["linee_tensione"])))])
+    for chiave in ("istruzioni", "soccorso"):
+        stile.sezione(doc, titoli[chiave])
+        stile.testo(doc, testi[chiave], titoli[chiave], PONTEGGI, CONSIGLIATO)
     stile.scheda(doc, [("DPI specifici", p["dpi"]), ("Attrezzature di sollevamento", p["sollevamento"])],
                  titolo="Dotazioni")
 
-    stile.capitolo(doc, "Sequenze di montaggio, trasformazione e smontaggio", "Allegato XXII, punto 7")
+    stile.capitolo(doc, "Modalità di montaggio, trasformazione e smontaggio", "Allegato XXII, punto 8")
     for chiave in ("montaggio", "trasformazione", "smontaggio"):
         stile.sezione(doc, titoli[chiave])
         stile.testo(doc, testi[chiave], titoli[chiave], PONTEGGI, OBBLIGATORIO)
 
-    stile.capitolo(doc, "Regole da applicare durante l'uso", "Allegato XXII, punto 8")
+    stile.capitolo(doc, "Regole da applicare durante l'uso", "Allegato XXII, punto 9")
     stile.testo(doc, testi["uso"], titoli["uso"], PONTEGGI, OBBLIGATORIO)
 
-    stile.capitolo(doc, "Verifiche prima del montaggio e durante l'uso", "Allegato XIX")
+    stile.capitolo(doc, "Verifiche prima del montaggio e durante l'uso", "Allegato XXII, punto 10, e Allegato XIX")
     verifiche = repo.elenco("verifiche_ponteggio", ponteggio_id=ponteggio_id)
     if verifiche:
         t = stile.tabella_colorata(doc, ["Momento", "Verifica", "Esito", "Note"],

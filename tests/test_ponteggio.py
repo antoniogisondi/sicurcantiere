@@ -30,14 +30,14 @@ def _ponteggio(**geometria):
 def test_geometria_predefinita_e_lati():
     p = _ponteggio()
     g = P.geometria(p)
-    assert g["campata"] == 1.8 and g["interpiano"] == 2.0 and len(g["lati"]) == 2
+    assert g["campata"] == 1.8 and g["interpiano"] == 2.0 and len(g["tratti"]) == 2  # i «lati» diventano tratti
     nord, est = P.lati(p, g)
     assert (nord.campate, nord.livelli) == (10, 6)  # 18 / 1,80 e 12 / 2,00
     assert (est.campate, est.livelli, est.altezza) == (5, 4, 8)
     assert P.sviluppo(g) == 27
     # senza geometria: un lato con lo sviluppo e il nome del ponteggio
     vecchio = P.geometria({"nome": "Sud", "lunghezza": 14, "geometria": "{}"})
-    assert vecchio["lati"][0]["nome"] == "Sud" and vecchio["lati"][0]["lunghezza"] == 14
+    assert vecchio["tratti"][0]["nome"] == "Sud" and vecchio["tratti"][0]["lunghezza"] == 14
     assert P.geometria({"geometria": "non json"})["campata"] == 1.8
 
 
@@ -57,7 +57,7 @@ def test_ancoraggi_schema_e_modifiche_a_mano():
     posizioni = P.posizioni_ancoraggi(nord, g)
     assert (3, 1) in posizioni and (0, 2) not in posizioni
     g = P.cambia_ancoraggio(g, p, 0, 0, 2)  # rimesso
-    assert g["lati"][0]["tolti"] == []
+    assert g["tratti"][0]["tolti"] == []
     a = P.ancoraggi(p)
     assert a.numero > 10 and 0 < a.area_per_ancoraggio <= P.AREA_PER_ANCORAGGIO
 
@@ -79,7 +79,8 @@ def test_elementi_per_tipologia():
     voci = dict((n, q) for n, q, _ in P.elementi(p))
     assert voci["Telai (stilate × livelli)"] == 11 * 6 + 6 * 4
     assert voci["Basette regolabili"] == (11 + 6) * 2
-    assert voci["Ancoraggi"] == P.ancoraggi(p).numero
+    assert next(q for n, q in voci.items() if n.startswith("Ancoraggi (")) == P.ancoraggi(p).numero
+    assert voci["Spinotti di collegamento tra i telai"] == 11 * 5 * 2 + 6 * 3 * 2
     assert "Mantovana parasassi" in voci
     p["tipo"] = "Tubi e giunti"
     assert "Giunti ortogonali" in dict((n, q) for n, q, _ in P.elementi(p))
@@ -95,6 +96,79 @@ def test_avvisi_geometria():
     # un lato più alto di 20 m richiede il progetto anche se l'altezza del ponteggio è minore
     alto = _ponteggio(lati=[{"nome": "Torre", "lunghezza": 6, "altezza": 24}])
     assert any("art. 133" in m for m in pimus.avvisi(alto))
+
+
+def test_tratti_collegati_staccati_e_ruotati():
+    g = {"tratti": [
+        {"nome": "Nord", "lunghezza": 10},
+        {"nome": "Strettoia", "lunghezza": 3, "tipo": "Tubi e giunti", "larghezza": 0.6, "svolta": 0},
+        {"nome": "Est", "lunghezza": 8, "svolta": 90},
+        {"nome": "Corpo ruotato", "lunghezza": 6, "collegato": False, "x": -5, "y": 2, "angolo": 30,
+         "quota": 3.5, "altezza": 4, "verso": "interno"},
+    ]}
+    p = {**_ponteggio(), "geometria": json.dumps(g)}
+    nord, strettoia, est, ruotato = P.tratti(p)
+    assert strettoia.origine == (10, 0) and strettoia.angolo == 0  # prosegue sulla stessa facciata
+    assert strettoia.tipo == "Tubi e giunti" and strettoia.larghezza == 0.6 and nord.larghezza == 1.05
+    assert est.origine == (13, 0) and est.angolo == 90
+    assert ruotato.origine == (-5, 2) and ruotato.angolo == 30 and ruotato.quota == 3.5 and ruotato.livelli == 2
+    assert ruotato.normale == pytest.approx((-0.5, 3 ** 0.5 / 2))  # a sinistra della facciata
+    assert P.tipologie(p) == ["Telai prefabbricati", "Tubi e giunti"]
+    voci = [n for n, _, _ in P.elementi(p)]
+    assert "Giunti ortogonali (tubi e giunti)" in voci and "Telai (stilate × livelli) (telai prefabbricati)" in voci
+    assert any("tipologie diverse" in m for m in P.avvisi_geometria(p))
+    assert not P.chiuso(P.tratti(p))
+    quadrato = {**p, "geometria": json.dumps({"tratti": [{"lunghezza": 6, "svolta": 90}] * 4})}
+    assert P.chiuso(P.tratti(quadrato))
+    assert "Parapetti di testata" not in [n for n, _, _ in P.elementi(quadrato)]
+
+
+def test_elementi_inseriti_e_ancoraggio_su_tubo():
+    p = _ponteggio()
+    g = P.geometria(p)
+    prima = P.ancoraggi(p).numero
+    g = P.cambia_elemento(g, "ancoraggio_tubo", 0, 3, 2)
+    g = P.cambia_elemento(g, "trave_carraia", 0, 4, 3)  # a terra: il livello diventa 0
+    g = P.cambia_elemento(g, "mensola_esterna", 1, 1, 4)
+    assert [(e["tipo"], e["livello"]) for e in g["elementi"]] == [
+        ("ancoraggio_tubo", 2), ("trave_carraia", 0), ("mensola_esterna", 4)]
+    p["geometria"] = P.testo_geometria(g)
+    assert P.ancoraggi(p).numero == prima + 1
+    voci = dict((n, q) for n, q, _ in P.elementi(p))
+    assert voci["Ancoraggio su tubo e giunto"] == 1 and voci["Giunti ortogonali per ancoraggi su tubo"] == 2
+    assert voci["Mensola esterna (sbalzo)"] == 2  # due stilate
+    avvisi = P.avvisi_geometria(p)
+    assert any("tubo e giunto" in m for m in avvisi) and any("trave carraia" in m for m in avvisi)
+    g = P.cambia_elemento(P.geometria(p), "ancoraggio_tubo", 0, 3, 2)  # secondo clic: tolto
+    assert [e["tipo"] for e in g["elementi"]] == ["trave_carraia", "mensola_esterna"]
+    # elementi di tratti che non esistono più vengono scartati
+    g["elementi"].append({"tipo": "telo", "tratto": 9})
+    assert len(P.geometria({"geometria": P.testo_geometria(g)})["elementi"]) == 2
+
+
+def test_unione_di_due_ponteggi():
+    p = _ponteggio()
+    g = P.geometria(p)
+    altro = P.geometria({"geometria": json.dumps({
+        "tratti": [{"nome": "Cortile", "lunghezza": 6, "x": 0, "y": 0}, {"nome": "Retro", "lunghezza": 4}],
+        "elementi": [{"tipo": "telo", "tratto": 1, "da": 0, "a": 1, "livello": 1}]})})
+    unito = P.unisci(g, altro, P.tratti(p, g))
+    p["geometria"] = P.testo_geometria(unito)
+    nomi = [t.nome for t in P.tratti(p)]
+    assert nomi == ["Nord", "Est", "Cortile", "Retro"]
+    cortile = P.tratti(p)[2]
+    assert cortile.origine == (20.0, 9.0)  # 2 m dopo la fine dell'ultimo tratto
+    assert P.geometria(p)["elementi"][0]["tratto"] == 3
+
+
+def test_linee_elettriche_e_autorizzazione():
+    assert pimus.distanza_minima("da 30 a 132 kV") == 5
+    assert pimus.avvisi_linee({"linee_tensione": ""}) == []
+    assert "3,5 m" in pimus.avvisi_linee({"linee_tensione": "da 1 a 30 kV", "linee_distanza": 2})[0]
+    assert pimus.avvisi_linee({"linee_tensione": "da 1 a 30 kV", "linee_distanza": 4}) == []
+    assert pimus.scadenza_autorizzazione({"aut_data": "2015-06-01", "aut_rinnovo": "2024-01-10"}) == date(2034, 1, 10)
+    assert "scaduta" in pimus.avvisi_autorizzazione({"aut_data": "2010-01-01"}, date(2026, 10, 28))[0]
+    assert pimus.avvisi_autorizzazione({"aut_data": "2020-01-01"}, date(2026, 10, 28)) == []
 
 
 def test_formazione_della_squadra():
@@ -114,7 +188,7 @@ def test_formazione_della_squadra():
 def test_migrazione_porta_preposto_e_squadra(tmp_path):
     percorso = tmp_path / "vecchio.spm"
     conn = sqlite3.connect(percorso)
-    for n, sql in enumerate(MIGRAZIONI[:-1], 1):
+    for n, sql in enumerate(MIGRAZIONI[:-2], 1):  # file della versione 0.23
         conn.executescript(f"BEGIN;{sql};PRAGMA user_version = {n};COMMIT;")
     conn.execute("INSERT INTO ponteggi (nome, preposto, squadra) VALUES ('Nord', 'Luca Bianchi', 'Mario, Gino')")
     conn.commit()

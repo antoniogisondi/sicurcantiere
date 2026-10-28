@@ -436,25 +436,53 @@ def test_programma_pimus(app, tmp_path):
     assert repo.testo(pimus.chiave_testo(pid, "uso")).startswith("È vietato")
     assert f._pagina_principale() is pp
 
-    # disegno: lati, tipologia e ancoraggi a mano dal prospetto
+    # disegno: tratti, tipologia per tratto, ancoraggi ed elementi dal prospetto
     from sicurcantiere import ponteggio as P
 
     g = pp.geometria
-    g.lati.item(0, 1).setText("18")
-    g._aggiungi_lato()
-    g.tipo.setCurrentIndex(g.tipo.findData("Tubi e giunti"))
+    g.tratti.item(0, 1).setText("18")
+    g._aggiungi_tratto()
+    assert g.tratti.currentRow() == 1
+    g.t_tipo.setCurrentIndex(g.t_tipo.findData("Tubi e giunti"))
     salvato = repo.leggi("ponteggi", pid)
-    assert salvato["tipo"] == "Tubi e giunti" and salvato["lunghezza"] == 28
-    assert [l["nome"] for l in P.geometria(salvato)["lati"]] == ["Ponteggio di facciata", "Est"]
+    assert salvato["lunghezza"] == 28
+    tratti = P.tratti(salvato)
+    assert [t.nome for t in tratti] == ["Ponteggio di facciata", "Est"]
+    assert [t.tipo for t in tratti] == ["Telai prefabbricati", "Tubi e giunti"]
     g.vista.nodo.emit(0, 1, 1)
-    assert [1, 1] in P.geometria(repo.leggi("ponteggi", pid))["lati"][0]["aggiunti"]
-    g.lati.item(1, 3).setCheckState(QtCore.Qt.CheckState.Unchecked)
-    assert P.geometria(repo.leggi("ponteggi", pid))["lati"][1]["mantovana"] is False
-    for n in range(g.gruppo.buttons().__len__()):
+    assert [1, 1] in P.geometria(repo.leggi("ponteggi", pid))["tratti"][0]["aggiunti"]
+    g.strumento.setCurrentIndex(g.strumento.findData("ancoraggio_tubo"))
+    g.vista.campata.emit(0, 2, 3)
+    g.strumento.setCurrentIndex(g.strumento.findData("trave_carraia"))
+    g.vista.campata.emit(0, 4, 2)
+    elementi = P.geometria(repo.leggi("ponteggi", pid))["elementi"]
+    assert [(e["tipo"], e["da"], e["livello"]) for e in elementi] == [("ancoraggio_tubo", 2, 3), ("trave_carraia", 4, 0)]
+    assert g.elementi.rowCount() == 2
+    g.elementi.item(1, 2).setText("5-6")  # la trave occupa due campate
+    assert P.geometria(repo.leggi("ponteggi", pid))["elementi"][1]["a"] == 5
+    # tratto staccato e ruotato
+    g.t_posizione.setCurrentIndex(1)
+    g.t_angolo.setValue(45)
+    assert P.tratti(repo.leggi("ponteggi", pid))[1].angolo == 45
+    for n in range(len(g.gruppo.buttons())):
         g.gruppo.button(n).click()
         g.vista.grab()  # ogni vista si disegna senza errori
     pp.schede.setCurrentWidget(pp.calcoli)
     assert "ancoraggi" in pp.calcoli.ancoraggi.text() and pp.calcoli.elementi.rowCount() > 5
+    voci = [pp.calcoli.elementi.item(r, 0).text() for r in range(pp.calcoli.elementi.rowCount())]
+    assert "Ancoraggio su tubo e giunto" in voci and "Trave per passo carraio" in voci
+
+    # due ponteggi diventano uno
+    pp.tabella.aggiungi()
+    secondo = max(r["id"] for r in repo.elenco("ponteggi"))
+    repo.aggiorna("ponteggi", secondo, nome="Corpo basso", altezza=6)
+    repo.inserisci("verifiche_ponteggio", ponteggio_id=secondo, voce="Verifica del corpo basso")
+    pp.tabella.seleziona(pid)
+    pp.unisci(secondo)
+    assert [r["id"] for r in repo.elenco("ponteggi")] == [pid]
+    unito = repo.leggi("ponteggi", pid)
+    assert len(P.tratti(unito)) == 3 and P.tratti(unito)[2].altezza == 6
+    assert any(v["voce"] == "Verifica del corpo basso" for v in repo.elenco("verifiche_ponteggio", ponteggio_id=pid))
 
     # squadra dai lavoratori dell'impresa
     impresa = repo.inserisci("imprese", ragione_sociale="Edil")

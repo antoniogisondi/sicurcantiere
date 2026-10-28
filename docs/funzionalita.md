@@ -176,29 +176,60 @@ programma apre anche i file degli altri: per esempio il POS può partire dal fil
 - Dati del ponteggio, testi base per tutte le sezioni e verifiche prima del montaggio e durante
   l'uso.
 - Avviso automatico quando serve il progetto (art. 133), anche quando un solo lato supera i 20 m.
-- **Disegno del ponteggio** (scheda «Disegno»): il ponteggio si crea da zero e si modifica con i
-  dati. Si inseriscono:
-  - la tipologia (telai prefabbricati, tubi e giunti, montanti e traversi, multidirezionale);
-  - la forma: lati in sequenza (facciata, a L, a U) oppure perimetro chiuso;
-  - per ogni lato la lunghezza, l'altezza se diversa e la mantovana sì/no;
-  - campata, larghezza degli impalcati, interpiano e distanza dalla facciata;
-  - la maglia degli ancoraggi (ogni N campate e N livelli, a rombo o allineati), la mantovana e i
-    teli.
+- **Disegno del ponteggio** (scheda «Disegno»): il ponteggio si crea da zero e si personalizza
+  come in cantiere. È un insieme di **tratti**, tutti dello stesso ponteggio; ogni tratto ha:
+  - la sua tipologia (telai prefabbricati, tubi e giunti, montanti e traversi, multidirezionale),
+    così un raccordo in tubi e giunti in una strettoia resta nello stesso ponteggio a telai;
+  - la sua posizione: collegato alla fine del precedente con una svolta qualsiasi (90° agli
+    spigoli, 0° sulla stessa facciata) oppure staccato, in un punto libero e ruotato di un angolo
+    qualsiasi (si sposta anche trascinandolo sulla pianta);
+  - lunghezza, altezza, quota di partenza (terrazzi, coperture, terreno in pendenza), campata,
+    larghezza, distanza dalla facciata, lato del ponteggio e mantovana.
 
-  Lo schema si aggiorna mentre si scrive:
+  Valori comuni: interpiano, maglia e tipo degli ancoraggi, mantovana, teli, piano di appoggio.
+  **Unisci un altro ponteggio**: due ponteggi del cantiere diventano uno (tratti, elementi, squadra,
+  verifiche e allegati), per esempio un tratto ruotato che fa parte della stessa facciata.
+- **Catalogo degli elementi** da inserire con un clic sul prospetto, nella campata e
+  all'impalcato scelti, e da modificare nell'elenco (campate, impalcati, quantità, note):
+  - ancoraggi fuori schema, tra cui l'**ancoraggio su tubo e giunto** (tubo fissato tra le
+    stilate con due giunti e ancoraggio sul tubo dove sul montante non c'è spazio), puntoni di
+    contrasto, ancoraggi a V;
+  - diagonali di facciata e in pianta, tavolati in legno, impalcati con botola, parapetti sul lato
+    facciata e di sommità;
+  - mensole interne ed esterne, mensole per disassamento, travi per passo carraio, telai per
+    passaggio pedonale;
+  - scale interne, torri scala, piazzole di carico, argani, montacarichi;
+  - mantovane, teli e reti, tabelloni, tunnel pedonali, protezioni dei varchi;
+  - integrazioni in tubi e giunti, rinforzi dei montanti, piccoli elementi (giunti, tubi,
+    spinotti, prolunghe, tavole di ripartizione, correnti e fermapiede aggiuntivi);
+  - messa a terra, luci di segnalazione, cartello del carico ammesso.
+
+  Ogni elemento compare in tutte le viste ed entra nel computo; quelli che lo richiedono portano
+  l'avviso nel PiMUS (calcolo del vento per teli e tabelloni, schema del libretto per travi
+  carraie e piazzole, progetto per tipologie miste).
+
+  Lo schema si aggiorna mentre si scrive; tutte le viste nascono dallo stesso modello 3D:
   - vista **3D** che si ruota trascinando, si ingrandisce con la rotellina e si sposta con il tasto
-    destro;
-  - **pianta**;
-  - **prospetto** di ogni lato, dove un clic su un nodo aggiunge o toglie un ancoraggio;
-  - **sezione tipo**.
+    destro, con il tratto selezionato evidenziato;
+  - **pianta** di tutti i tratti (un clic sceglie il tratto);
+  - **prospetto** di ogni tratto: un clic su un nodo aggiunge o toglie un ancoraggio, un clic su
+    una campata inserisce o toglie l'elemento scelto;
+  - **sezione tipo** di ogni tratto.
 
   Disegnato con Qt, senza librerie CAD da installare.
+- **Autorizzazione ministeriale** (art. 131): fabbricante, nome del sistema, numero, data, ultimo
+  rinnovo con avviso quando sono passati dieci anni, schemi tipo utilizzati.
+- **Linee elettriche aeree**: tensione e distanza dal ponteggio, con avviso sotto le distanze
+  dell'Allegato IX (3 m fino a 1 kV, 3,5 m fino a 30 kV, 5 m fino a 132 kV, 7 m oltre).
+- **Verifiche dell'Allegato XIX** per le tipologie presenti (telai, tubi e giunti,
+  multidirezionali), comprese quelle durante l'uso: disegno esecutivo firmato, progetto oltre 20 m,
+  ultima verifica del preposto, calcolo del vento con teli, dispositivi di blocco degli impalcati.
 - **Calcoli e quantità** (stime, prevalgono il libretto e il progetto):
   - numero di ancoraggi e m² di facciata per ancoraggio, con avviso oltre i 22 m²;
   - carico sul montante più caricato (peso proprio, più la classe di carico UNI EN 12811-1 su un
     impalcato pieno e su quello adiacente al 50%) e pressione sul terreno, confrontate con la
     portanza; se la pressione supera la portanza, l'avviso indica la ripartizione minima;
-  - elenco indicativo degli elementi per tipologia.
+  - elenco indicativo degli elementi per tipologia, dai telai ai giunti, spinotti e tasselli.
 - **Squadra di montaggio** con la formazione di ciascuno: corso da 28 ore e aggiornamento ogni 4
   anni (Allegato XXI e Accordo Stato-Regioni del 17/04/2025). Gli avvisi segnalano corso mancante,
   aggiornamento scaduto, preposto o addetti mancanti. I nomi si possono prendere dai lavoratori
@@ -206,7 +237,10 @@ programma apre anche i file degli altri: per esempio il POS può partire dal fil
 - **Allegati** (disegno esecutivo, progetto, libretto, autorizzazione, schema e prove degli
   ancoraggi, attestati, foto): immagini e PDF entrano in coda al documento.
 - Documento nella stessa impaginazione di PSC e POS, in verde:
-  - copertina con le firme e capitoli dell'Allegato XXII;
+  - copertina con le firme e capitoli numerati come i 10 punti dell'Allegato XXII (disegno
+    esecutivo e progetto separati, indicazioni generali con le lettere da a) a i), tra cui linee
+    elettriche e caduta di materiali, più il soccorso dell'addetto sospeso);
+  - tabella dei tratti ed elenco degli elementi inseriti con la loro posizione;
   - tabella della squadra con la scadenza della formazione;
   - geometria, elementi, schema degli ancoraggi e verifica dell'appoggio;
   - schema grafico (vista d'insieme, pianta, prospetti, sezione) e allegati;

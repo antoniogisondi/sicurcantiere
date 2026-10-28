@@ -466,6 +466,16 @@ MIGRAZIONI: list[str] = [
         file TEXT NOT NULL DEFAULT ''
     );
     """,
+    # v0.25: PiMUS. Autorizzazione ministeriale del sistema (data, ultimo rinnovo, nome commerciale e schemi tipo)
+    # e linee elettriche aeree vicine al ponteggio (Allegato IX).
+    """
+    ALTER TABLE ponteggi ADD COLUMN sistema TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN aut_data TEXT;
+    ALTER TABLE ponteggi ADD COLUMN aut_rinnovo TEXT;
+    ALTER TABLE ponteggi ADD COLUMN schemi_tipo TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN linee_tensione TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN linee_distanza REAL NOT NULL DEFAULT 0;
+    """,
 ]
 
 VERSIONE_SCHEMA = len(MIGRAZIONI)
