@@ -315,6 +315,42 @@ def test_genera_pos(repo, tmp_path):
     assert "Otoprotettori" in testo  # DPI raccolti dalle schede
 
 
+def test_consegna_e_verifica_del_pos(repo, tmp_path):
+    """Copia al RLS 10 giorni prima (art. 100), trasmissione e inizio dopo le verifiche (art. 101)."""
+    from sicurcantiere import controlli
+    from sicurcantiere.documenti.pos import genera_pos
+
+    a = _cantiere_completo(repo)  # lavori dal 06/10/2025
+
+    def messaggi():
+        return [x.messaggio for x in controlli.controlla_pos(repo)]
+
+    assert any("messa a disposizione del RLS" in m for m in messaggi())
+    repo.aggiorna("imprese", a, pos_rls_data="2025-10-01")
+    assert any("solo 5 giorni prima" in m for m in messaggi())
+    repo.aggiorna("imprese", a, pos_rls_data="2025-09-20", pos_affidataria_data="2025-09-22",
+                  pos_cse_data="2025-09-24", pos_esito_data="2025-10-10")
+    assert any("prima dell'esito positivo" in m for m in messaggi())
+    repo.aggiorna("imprese", a, pos_esito_data="2025-10-01")
+    assert not any("art. 100" in m or "art. 101" in m for m in messaggi())
+    testo = _testo_docx(genera_pos(repo, a, tmp_path / "pos.docx"))
+    assert "Consegna, verifica e aggiornamento del piano" in testo and "20/09/2025" in testo
+    assert "almeno dieci giorni prima dell'inizio dei lavori" in testo
+    # solo un lavoratore autonomo: niente POS
+    repo2 = Repository(Progetto(tmp_path / "b.spo", crea=True))
+    repo2.inserisci("imprese", ragione_sociale="Mario Rossi", tipo="Lavoratore autonomo")
+    assert any("non redige il POS" in x.messaggio for x in controlli.controlla_pos(repo2))
+    repo2.progetto.chiudi()
+
+
+def test_valutazione_del_rumore_vecchia(repo):
+    from sicurcantiere import controlli
+
+    _cantiere_completo(repo)
+    repo.inserisci("valutazioni", metodo="rumore", titolo="Rumore 2019", data="2019-03-01")
+    assert any("più vecchia di quattro anni" in x.messaggio for x in controlli.controlla_pos(repo))
+
+
 def test_genera_fascicolo_e_notifica(repo, tmp_path):
     from sicurcantiere.documenti.fascicolo import genera_fascicolo
     from sicurcantiere.documenti.notifica import genera_notifica

@@ -292,6 +292,19 @@ programma apre anche i file degli altri: per esempio il POS può partire dal fil
   righe sottili, tabelle colorate, riquadri delle firme). Anche i capitoli sostanze e valutazioni
   dentro il POS usano la stessa grafica.
 
+### Consegna e verifica del POS
+- Nella scheda dell'impresa le date di messa a disposizione del RLS, di trasmissione all'impresa
+  affidataria e al coordinatore per l'esecuzione e dell'esito positivo delle verifiche.
+- Controlli:
+  - copia al RLS almeno 10 giorni prima dell'inizio dei lavori (art. 100, comma 4);
+  - lavori che iniziano prima dell'esito positivo delle verifiche (art. 101, comma 3);
+  - POS trasmesso da più di 15 giorni senza esito, da sollecitare;
+  - valutazioni del rumore e delle vibrazioni più vecchie di quattro anni (art. 181, comma 2);
+  - nel cantiere c'è solo un lavoratore autonomo senza dipendenti: non redige il POS (artt. 21 e 94).
+- Nel POS il capitolo «Consegna, verifica e aggiornamento del piano», con le date e le regole di
+  aggiornamento: nuove lavorazioni, attrezzature o sostanze, cambi della squadra o delle figure,
+  modifiche del PSC. La dichiarazione finale riporta la data di consegna al RLS.
+
 ### Il documento finale (POS)
 - **Capitoli nell'ordine dell'Allegato XV 3.2.1**, in tre parti:
   - il cantiere e l'impresa;

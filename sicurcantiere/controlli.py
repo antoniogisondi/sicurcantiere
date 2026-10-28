@@ -166,6 +166,40 @@ NESSUN_INTERVENTO = "dichiarazione:nessun_intervento"
 NESSUNA_SOSTANZA = "dichiarazione:nessuna_sostanza"
 
 
+GIORNI_RLS = 10  # art. 100, comma 4: PSC e POS a disposizione del RLS almeno 10 giorni prima dell'inizio dei lavori
+GIORNI_VERIFICA = 15  # art. 101, comma 3: verifiche dell'affidataria e del CSE entro 15 giorni dal ricevimento
+
+
+def _consegna_pos(repo: Repository, impresa: dict, nome: str) -> list[Segnalazione]:
+    """Messa a disposizione del RLS, trasmissione all'affidataria e al CSE e inizio dei lavori dopo l'esito
+    positivo delle verifiche (artt. 100 e 101)."""
+    from datetime import date
+
+    from sicurcantiere.documenti.pos import periodo_impresa
+
+    s = []
+    inizio = periodo_impresa(repo, impresa)[0]
+    rls = analisi.data(impresa.get("pos_rls_data"))
+    if inizio and not rls:
+        s.append(Segnalazione(AVVISO, "Impresa", f"{nome}: indicare quando la copia del POS è messa a disposizione "
+                                                 f"del RLS, almeno {GIORNI_RLS} giorni prima dell'inizio dei lavori "
+                                                 "(art. 100, comma 4)."))
+    elif inizio and rls and (inizio - rls).days < GIORNI_RLS:
+        s.append(Segnalazione(AVVISO, "Impresa", f"{nome}: il POS è a disposizione del RLS solo "
+                                                 f"{max(0, (inizio - rls).days)} giorni prima dell'inizio dei lavori; "
+                                                 f"ne servono almeno {GIORNI_RLS} (art. 100, comma 4)."))
+    esito = analisi.data(impresa.get("pos_esito_data"))
+    trasmesso = analisi.data(impresa.get("pos_cse_data")) or analisi.data(impresa.get("pos_affidataria_data"))
+    if inizio and esito and esito > inizio:
+        s.append(Segnalazione(ERRORE, "Impresa", f"{nome}: i lavori iniziano il {inizio.strftime('%d/%m/%Y')}, prima "
+                                                 "dell'esito positivo delle verifiche del POS: possono iniziare solo "
+                                                 "dopo (art. 101, comma 3)."))
+    if trasmesso and not esito and (date.today() - trasmesso).days > GIORNI_VERIFICA:
+        s.append(Segnalazione(AVVISO, "Impresa", f"{nome}: POS trasmesso da più di {GIORNI_VERIFICA} giorni senza "
+                                                 "esito delle verifiche: sollecitarle (art. 101, comma 3)."))
+    return s
+
+
 def controlla_pos(repo: Repository) -> list[Segnalazione]:
     """Controlli per il POS: dati dell'impresa, lavoratori, rischi e valutazioni."""
     from datetime import date
@@ -190,13 +224,17 @@ def controlla_pos(repo: Repository) -> list[Segnalazione]:
     operative = [i for i in imprese if repo.elenco("fasi", impresa_id=i["id"])
                  or repo.elenco("lavoratori", impresa_id=i["id"])]
     imprese = operative or imprese
-    if not imprese:
+    if not imprese and any(anagrafiche.autonomo(i) for i in repo.elenco("imprese")):
+        s.append(Segnalazione(AVVISO, "Impresa", "Il lavoratore autonomo senza dipendenti non redige il POS: rispetta "
+                                                 "gli obblighi dell'art. 21 e le indicazioni del PSC (art. 94)."))
+    elif not imprese:
         s.append(Segnalazione(ERRORE, "Impresa", "Inserire l'impresa che redige il POS."))
     oggi = date.today().isoformat()
     for i in imprese:
         nome = i["ragione_sociale"] or f"Impresa n. {i['id']}"
         if not i["datore_lavoro"].strip():
             s.append(Segnalazione(ERRORE, "Impresa", f"{nome}: indicare il datore di lavoro."))
+        s += _consegna_pos(repo, i, nome)
         if not (i["indirizzo"].strip() and i["comune"].strip()):
             s.append(Segnalazione(AVVISO, "Impresa", f"{nome}: completare l'indirizzo della sede legale."))
         if not (i["partita_iva"].strip() or i["codice_fiscale"].strip()):
@@ -326,6 +364,12 @@ def controlla_pos(repo: Repository) -> list[Segnalazione]:
         metodo = METODI.get(v["metodo"])
         if metodo is None:
             continue
+        eseguita = analisi.data(v["data"])
+        if v["metodo"] in ("rumore", "vibrazioni") and eseguita and (date.today() - eseguita).days > 4 * 365:
+            s.append(Segnalazione(AVVISO, "Valutazioni", f"«{v['titolo'] or metodo.nome}»: valutazione del "
+                                                         f"{eseguita.strftime('%d/%m/%Y')}, più vecchia di quattro "
+                                                         "anni: va aggiornata (art. 181, comma 2) e riferita alle "
+                                                         "attrezzature e alle lavorazioni di questo cantiere."))
         if automatiche.da_eseguire(repo, v["id"]):
             s.append(Segnalazione(ERRORE, "Valutazioni", f"«{v['titolo'] or metodo.nome}»: valutazione da "
                                                          "eseguire, inserire i parametri del metodo."))

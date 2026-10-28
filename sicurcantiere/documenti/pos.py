@@ -47,6 +47,18 @@ def elenco_dpi(testi: list[str]) -> list[str]:
     return sorted(visti.values(), key=str.lower)
 
 
+def _data_o_spazio(valore) -> str:
+    return data_it(valore) if valore else "____/____/________"
+
+
+def periodo_impresa(repo: Repository, impresa: dict) -> tuple:
+    """(inizio, fine) dei lavori dell'impresa: date indicate o, in mancanza, quelle delle sue lavorazioni."""
+    periodo_fasi = analisi.periodo_lavori(repo.elenco("fasi", impresa_id=impresa["id"]))
+    inizio = analisi.data(impresa["data_inizio"]) or (periodo_fasi[0] if periodo_fasi else None)
+    fine = analisi.data(impresa["data_fine"]) or (periodo_fasi[1] if periodo_fasi else None)
+    return inizio, fine
+
+
 def _periodo(impresa: dict, periodo_fasi: tuple | None) -> str:
     """Date dei lavori indicate per l'impresa o, in mancanza, ricavate dalle sue lavorazioni."""
     inizio = analisi.data(impresa["data_inizio"]) or (periodo_fasi[0] if periodo_fasi else None)
@@ -651,6 +663,21 @@ def genera_pos(repo: Repository, impresa_id: int, destinazione: str | Path) -> P
                       "vigilanza e del coordinatore per l'esecuzione la seguente documentazione:")
     stile.elenco(doc, DOCUMENTI_IN_CANTIERE)
 
+    stile.capitolo(doc, "Consegna, verifica e aggiornamento del piano", "artt. 100, comma 4, 101, comma 3, e 97")
+    stile.tabella_colorata(doc, ["Passaggio", "Data"], [
+        ["Copia messa a disposizione del rappresentante dei lavoratori per la sicurezza (almeno 10 giorni prima "
+         "dell'inizio dei lavori)", _data_o_spazio(impresa.get("pos_rls_data"))],
+        ["Trasmissione all'impresa affidataria" + (f" ({affidataria['ragione_sociale']})" if affidataria
+                                                   else "") + " per la verifica di congruenza",
+         _data_o_spazio(impresa.get("pos_affidataria_data"))],
+        ["Trasmissione al coordinatore per l'esecuzione per la verifica di idoneità",
+         _data_o_spazio(impresa.get("pos_cse_data"))],
+        ["Esito positivo delle verifiche (i lavori iniziano solo dopo)", _data_o_spazio(impresa.get("pos_esito_data"))],
+    ], 8.5, larghezze=[13.4, 4.0])
+    doc.add_paragraph("Il piano è aggiornato, datato, firmato e trasmesso di nuovo all'impresa affidataria o al "
+                      "coordinatore per l'esecuzione a ogni variazione rilevante: nuove lavorazioni, attrezzature o "
+                      "sostanze, cambi della squadra o delle figure della sicurezza, modifiche del PSC.")
+
     # --- allegati e firme ---
     stile.capitolo(doc, "Allegati e firme")
     allegati = []
@@ -669,7 +696,9 @@ def genera_pos(repo: Repository, impresa_id: int, destinazione: str | Path) -> P
         stile.elenco_lettere(doc, allegati)
     doc.add_paragraph("Il datore di lavoro dichiara di aver redatto il presente piano operativo di sicurezza per il "
                       "cantiere indicato, ai sensi dell'art. 96 e dell'Allegato XV del D.Lgs. 81/2008, e di averlo "
-                      "messo a disposizione del rappresentante dei lavoratori per la sicurezza.")
+                      "messo a disposizione del rappresentante dei lavoratori per la sicurezza"
+                      + (f" il {data_it(impresa['pos_rls_data'])}" if impresa.get("pos_rls_data") else "")
+                      + ", almeno dieci giorni prima dell'inizio dei lavori (art. 100, comma 4).")
     p = doc.add_paragraph(f"{c['comune'] or ''}, {data_documento}".strip(", "))
     stile._spaziatura(p, 8, 8)
     rls = next((f for f in figure if anagrafiche.ruolo_riconosciuto(f["ruolo"]) in ("RLS", "RLST")), None)

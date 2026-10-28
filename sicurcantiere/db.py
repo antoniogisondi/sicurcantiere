@@ -487,7 +487,8 @@ MIGRAZIONI: list[str] = [
     """,
     # v0.26: PiMUS. Persona competente che redige il piano, impresa responsabile del ponteggio in opera, contesto
     # dell'opera, conformità al PSC, sistema adottato contro le cadute durante il montaggio, situazioni
-    # particolari (partenze, vincoli di facciata, arrivo in quota...) e data di consegna del piano ai lavoratori.
+    # particolari (partenze, vincoli di facciata, arrivo in quota...). POS: date di messa a disposizione al RLS
+    # (art. 100, comma 4), di trasmissione all'affidataria e al CSE e dell'esito positivo delle verifiche (art. 101).
     """
     ALTER TABLE ponteggi ADD COLUMN redattore TEXT NOT NULL DEFAULT '';
     ALTER TABLE ponteggi ADD COLUMN redattore_qualifica TEXT NOT NULL DEFAULT '';
@@ -500,6 +501,10 @@ MIGRAZIONI: list[str] = [
     ALTER TABLE ponteggi ADD COLUMN sistema_anticaduta TEXT NOT NULL DEFAULT '';
     ALTER TABLE ponteggi ADD COLUMN situazioni TEXT NOT NULL DEFAULT '';
     ALTER TABLE ponteggi ADD COLUMN situazioni_note TEXT NOT NULL DEFAULT '';
+    ALTER TABLE imprese ADD COLUMN pos_rls_data TEXT;
+    ALTER TABLE imprese ADD COLUMN pos_affidataria_data TEXT;
+    ALTER TABLE imprese ADD COLUMN pos_cse_data TEXT;
+    ALTER TABLE imprese ADD COLUMN pos_esito_data TEXT;
     """,
 ]
 
