@@ -30,7 +30,7 @@ Rispetto agli altri software del settore punta su:
 | --- | --- | --- | --- |
 | **SicurCantiere POS** | Impresa esecutrice o il suo consulente | POS, valutazioni dei rischi specifici, sostanze pericolose, consegna DPI, tesserini, schede dei lavoratori | `.spo` |
 | **SicurCantiere PSC** | Coordinatore (CSP/CSE) | PSC, fascicolo dell'opera, notifica preliminare | `.scs` |
-| **SicurCantiere PiMUS** | Impresa che monta i ponteggi | PiMUS con verifiche | `.spm` |
+| **SicurCantiere PiMUS** | Impresa che monta i ponteggi | PiMUS con disegno del ponteggio in 3D e 2D, verifiche, rischi del montaggio, esportazione DXF | `.spm` |
 | **SicurCantiere DVR** | *in programma* | Documento di valutazione dei rischi aziendale | — |
 
 I programmi condividono gli archivi, il motore dei documenti, l'assistente AI e la licenza. Ogni
@@ -453,15 +453,17 @@ programma apre anche i file degli altri: per esempio il POS può partire dal fil
   - registro dei codici consegnati e dei promemoria inviati;
   - accesso con verifica in due passaggi.
 
-### Licenze per PC (in sviluppo, ottobre 2026)
+### Licenze per PC (dalla versione 0.23.0)
 
 Decisione di ottobre 2026: le licenze diventano **legate ai PC**, con attivazione online sul server
 dell'ufficio (opzione «server proprio», scelta al posto dei servizi esterni come Keygen,
-LicenseSpring o Cryptolens, che costerebbero 600-3.600 € l'anno). Il server gira sulla VM del NAS
-insieme al ponte AI (stesso indirizzo pubblico con Tailscale Funnel); passerà al server Proxmox
-copiando la cartella dei dati.
+LicenseSpring o Cryptolens, che costerebbero 600-3.600 € l'anno). Il server gira su una VM Ubuntu del
+server Proxmox dell'ufficio, insieme al ponte AI e al gestionale, con lo stesso indirizzo pubblico
+(Tailscale Funnel `vm-sicurcantiere.taile4e697.ts.net`); è stato spostato dalla VM del NAS a ottobre
+2026 copiando la cartella dei dati, la chiave delle licenze e le chiavi AI. Backup giornaliero della VM
+da Proxmox.
 
-Fatto (non ancora nei programmi pubblicati):
+Pubblicato dalla versione 0.23.0:
 - **Modulo comune `sicur_license`** (passo 1), usato da tutti i programmi della suite e dal server:
   - *impronta del PC*: codice di Windows, scheda madre e nome del PC, trasformati in hash con un
     sale assegnato dal server per ogni licenza; al server non arriva nessun dato in chiaro. Lo
@@ -496,7 +498,13 @@ Fatto (non ancora nei programmi pubblicati):
   trasferimenti»; file di attivazione offline da caricare e scaricare; registro della licenza.
   «Annulla la licenza» la blocca davvero (con «Riattiva»). Nel cruscotto «Da guardare»: licenze con PC
   rifiutati nel mese e PC sospetti di copia; pagina «Attivazioni» con il registro di tutte le licenze.
-  Nella scheda del cliente, per ogni licenza, i PC attivati su quelli disponibili.
+  Nella scheda del cliente, per ogni licenza, i PC attivati su quelli disponibili. Per ogni PC la colonna
+  «Programmi usati» mostra da quali programmi della suite è stata attivata o convalidata la licenza (dalla
+  0.24.0 i programmi lo comunicano a ogni convalida), mentre la pagina riporta i programmi compresi nella
+  licenza: una licenza della suite attivata da PiMUS vale anche per PSC e POS.
+- **Controllo dei programmi compresi**: una licenza solo POS aperta in PSC passa in sola lettura con «Non
+  incluso nella tua licenza»; il server rifiuta l'attivazione da un programma non compreso, senza consumare
+  un posto, e la scrive nel registro.
 - **Nei programmi** (passo 4):
   - *attivazione*: in «Aiuto > Licenza...» si incolla il codice e «Attiva la licenza» attiva questo PC sul
     server; con i posti finiti si apre l'elenco dei PC della licenza (nome, attivazione, ultimo uso) con
@@ -541,16 +549,41 @@ versioni uscite entro la fine degli aggiornamenti inclusi, le successive si apro
 ## Decisioni prese
 
 - Fino alla versione 0.22: licenze offline, senza vincolo al PC; alla scadenza il programma continua a
-  funzionare. Da ottobre 2026 (in sviluppo): licenze legate ai PC con attivazione online sul server
-  proprio, sola lettura quando la licenza non è valida, mai blocco dei dati.
+  funzionare. Dalla 0.23.0: licenze legate ai PC con attivazione online sul server proprio, sola lettura
+  quando la licenza non è valida, mai blocco dei dati.
 - La chiave privata delle licenze resta solo sul server; nel programma c'è la chiave pubblica.
 - AI spenta finché il cliente non la attiva con la sua chiave; nessun nome di persona viene inviato.
 - Si pubblica una nuova versione solo quando lo decide il titolare.
 - Grafica dei documenti propria, diversa da quella degli altri software del settore.
+- Programma compilato con Nuitka (dalla 0.23.0); per passare a una versione compilata basta
+  l'aggiornamento, non serve reinstallare.
+- PSC: nessuna scelta dell'impresa, perché il PSC riguarda tutte le imprese e i lavoratori autonomi del
+  cantiere; il verbale di idoneità si fa dalla scheda dell'impresa.
+- PiMUS (ottobre 2026):
+  - il ponteggio è un insieme di tratti liberi di un solo ponteggio, con tipologia, angolo e misure
+    propri, e si possono unire due ponteggi: è la personalizzazione che manca negli altri programmi
+    (per esempio i tratti ruotati della stessa facciata dati come ponteggi separati);
+  - disegno e viste fatti con Qt, già presente nel programma, invece di pythonOCC o di un motore CAD:
+    installatore leggero e disegni anche nel documento Word; esportazione in DXF scritta senza librerie;
+  - calcoli, quantità e ancoraggi sono stime per preparare il PiMUS: prevalgono libretto, schemi tipo e
+    progetto, e il programma lo scrive;
+  - nessun dato di autorizzazioni o libretti inventato: i sistemi si salvano nell'archivio dell'utente
+    dai dati reali che inserisce.
 
 ## Prossimi passi
 
-1. **Licenze per PC, passi successivi** (fatti i passi 1-6, vedi sopra):
+1. **PiMUS, prossimi passi**:
+   - aggiungere al catalogo gli elementi che il titolare segnala man mano;
+   - registro delle verifiche periodiche con data, firma e foto (dopo temporali o lunghe interruzioni,
+     art. 137) e verbali di consegna del ponteggio, di trasformazione e di smontaggio;
+   - duplicare un ponteggio o salvarlo come modello per i cantieri successivi;
+   - composizione salvata (bozza, emissione, consegna) anche per il PiMUS, come per POS e PSC;
+   - da verificare sul testo ufficiale dell'Accordo Stato-Regioni del 17/04/2025 la durata del corso per
+     i ponteggisti (28 ore secondo la maggior parte delle fonti, una ne indica 32) e sul testo vigente gli
+     articoli 131-138.
+2. **Licenze per PC, passi successivi** (fatti i passi 1-6, vedi sopra):
+   - attivare gli aggiornamenti firmati: chiave sulla VM (`python -m licenze chiave-aggiornamenti`), segreta
+     su GitHub, chiave pubblica nel programma;
    - da decidere: codici nuovi casuali al posto di `SC1-…` per le licenze nuove; prova gratuita legata al PC
      sul server (oggi riparte reinstallando il programma);
    - passo 7: checklist GDPR (informativa, registro dei trattamenti, backup cifrati con password) e Cyber
@@ -558,7 +591,10 @@ versioni uscite entro la fine degli aggiornamenti inclusi, le successive si apro
      requisiti completi dall'11 dicembre 2027);
    - ultimo passo prima del rilascio ufficiale (deciso a ottobre 2026): firma del programma con un
      certificato di firma del codice (OV, circa 120 €/anno, o Azure Artifact Signing).
-1. **Server ponte AI**: da ottobre 2026 il motore Standard è DeepSeek V4.1 Flash su **Scaleway**
+3. **Risposta allo studio legale** sulla tutela del programma: materiali preparati
+   (confronto delle schermate, estratto dell'archivio con le fonti, nota su come è stato scritto il
+   programma); da riprendere quando lo decide il titolare.
+4. **Server ponte AI**: da ottobre 2026 il motore Standard è DeepSeek V4.1 Flash su **Scaleway**
    (Parigi, dati trattati nell'UE). Il programma mostra ai clienti la sede comunicata dal server (riga
    SEDE di `ai.env`), quindi cambiando fornitore non serve una nuova versione. All'arrivo dei primi
    clienti si valuta se restare o passare a:
@@ -568,9 +604,9 @@ versioni uscite entro la fine degli aggiornamenti inclusi, le successive si apro
    In tutti i casi basta cambiare indirizzo, modello, chiave e sede in `ai.env`, senza toccare il
    programma. Prima di passare, provare su uno o due PSC veri quante imprese e fasi trova e quanto
    tempo impiega rispetto a DeepSeek.
-2. **Sito di vendita**: presentazione, prezzi, acquisto della licenza e download.
-3. **SicurCantiere DVR.**
-3. **SicurCantiere Formazione** (quarto programma della suite, idea approvata da sviluppare):
+5. **Sito di vendita**: presentazione, prezzi, acquisto della licenza e download.
+6. **SicurCantiere DVR.**
+7. **SicurCantiere Formazione** (quarto programma della suite, idea approvata da sviluppare):
    - stesso archivio di aziende e lavoratori degli altri programmi;
    - struttura clienti → aziende → lavoratori → attestati;
    - corsi richiesti per ogni mansione, con chi è scoperto o in scadenza;
@@ -580,13 +616,12 @@ versioni uscite entro la fine degli aggiornamenti inclusi, le successive si apro
    - email di promemoria ai clienti con l'elenco di chi scade;
    - calendario dei corsi, registro presenze, test di verifica, attestati numerati;
    - lettura degli attestati in PDF con l'AI (corso, data, ore);
-   - collegamento al POS: formazione dei lavoratori stampata in automatico e avviso se un corso è
-     scaduto nelle date del cantiere.
-3. **Documenti composti, prossimi passi**: allegati in PDF uniti in coda con la numerazione,
-   composizione salvata anche per il PiMUS.
-3. **Strumenti del CSE durante i lavori**: verbali di sopralluogo e di riunione di coordinamento,
+   - collegamento al POS e al PiMUS: formazione dei lavoratori stampata in automatico e avviso se un
+     corso è scaduto nelle date del cantiere.
+8. **Documenti composti, prossimi passi**: allegati in PDF uniti in coda con la numerazione.
+9. **Strumenti del CSE durante i lavori**: verbali di sopralluogo e di riunione di coordinamento,
    verifica dei POS ricevuti (art. 92), registro delle prescrizioni e delle sospensioni, avviso ai condomini o ai terzi.
-4. **Idee per distinguersi**, da scegliere:
+10. **Idee per distinguersi**, da scegliere:
    - verifica automatica, punto per punto, che il POS risponda alle richieste del PSC letto (la
      lettura è già salvata nel file);
    - verifica dei POS ricevuti da parte del coordinatore (art. 92), con il verbale di verifica;
