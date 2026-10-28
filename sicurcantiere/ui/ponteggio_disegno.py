@@ -384,6 +384,10 @@ class EditorGeometria(QWidget):
         self.edificio.toggled.connect(self._mostra_edificio)
         barra.addWidget(self.edificio)
         barra.addStretch()
+        esporta = QPushButton("Esporta DXF...")
+        esporta.setToolTip("Modello 3D o tavole 2D (pianta, prospetti, sezione) per AutoCAD, BricsCAD, LibreCAD...")
+        esporta.clicked.connect(self._esporta_dxf)
+        barra.addWidget(esporta)
         self.strumento = QComboBox()
         self.strumento.addItem("Ancoraggi", ANCORAGGI)
         for categoria in E.CATEGORIE:
@@ -736,6 +740,33 @@ class EditorGeometria(QWidget):
         if 0 <= indice < len(self.g["tratti"]):
             self.g["tratti"][indice]["x"], self.g["tratti"][indice]["y"] = x, y
             self._registra()
+
+    def _esporta_dxf(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+
+        from sicurcantiere.documenti import dxf_ponteggio
+
+        p = self.ponteggio()
+        if p is None:
+            return
+        scelte = ["Tavole 2D: pianta, prospetti e sezione", "Modello 3D"]
+        scelta, ok = QInputDialog.getItem(self, "Esporta DXF", "Cosa esportare:", scelte, 0, False)
+        if not ok:
+            return
+        tipo = dxf_ponteggio.TAVOLE_2D if scelta == scelte[0] else dxf_ponteggio.MODELLO_3D
+        nome = f"{p['nome'] or 'Ponteggio'} - {'tavole' if tipo == dxf_ponteggio.TAVOLE_2D else 'modello 3D'}.dxf"
+        predefinito = self.repo.progetto.percorso.with_name(nome)
+        percorso, _ = QFileDialog.getSaveFileName(self, "Esporta DXF", str(predefinito), "Disegno DXF (*.dxf)")
+        if not percorso:
+            return
+        try:
+            dxf_ponteggio.esporta(p, percorso, tipo)
+        except OSError:
+            QMessageBox.warning(self, "Esporta DXF", "Impossibile salvare il file: verifica che non sia aperto "
+                                                     "in un altro programma.")
+            return
+        QMessageBox.information(self, "Esporta DXF", f"Disegno salvato in {percorso}.\nLe misure sono in metri; "
+                                                     "ogni tipo di elemento è su un layer proprio.")
 
     # --- vista ---
 

@@ -1,8 +1,9 @@
 """Archivio delle anagrafiche dell'utente, comune a tutti i cantieri e ai tre programmi.
 
 Contiene le persone (committenti, coordinatori, RSPP, medici competenti, preposti...), le
-imprese con le loro figure e maestranze e le lavorazioni personalizzate (con macchine,
-attrezzi e rischi), così da non doverle riscrivere in ogni cantiere.
+imprese con le loro figure e maestranze, le lavorazioni personalizzate (con macchine,
+attrezzi e rischi) e i sistemi di ponteggio usati (fabbricante, autorizzazione ministeriale,
+campate, pesi, libretto), così da non doverli riscrivere in ogni cantiere.
 Si trova in un file SQLite nella cartella dei dati dell'utente.
 """
 
@@ -20,6 +21,14 @@ from sicurcantiere.repository import Repository
 PERSONA = "persona"
 IMPRESA = "impresa"
 LAVORAZIONE = "lavorazione"
+SISTEMA = "sistema_ponteggio"
+
+# Dati del ponteggio e della sua geometria che descrivono il sistema (non il singolo cantiere).
+CAMPI_SISTEMA = ("fabbricante", "sistema", "modello", "tipo", "autorizzazione", "aut_data", "aut_rinnovo",
+                 "schemi_tipo", "classe_carico", "ancoraggi")
+GEOMETRIA_SISTEMA = ("campata", "larghezza", "interpiano", "peso_proprio", "tipo_ancoraggio", "ancoraggi_campate",
+                     "ancoraggi_livelli", "ancoraggi_rombo")
+ALLEGATI_SISTEMA = ("Libretto del fabbricante", "Autorizzazione ministeriale", "Schema degli ancoraggi")
 
 # Campi che non hanno senso fuori dal cantiere di origine.
 _ESCLUSI = {"id", "impresa_id", "affidataria_id", "fase_id"}
@@ -138,6 +147,44 @@ class ArchivioAnagrafiche:
             repo.inserisci("lavoratori", impresa_id=impresa_id, **self._campi(repo, "lavoratori", l))
         return impresa_id
 
+    # --- sistemi di ponteggio ---
+
+    def salva_sistema(self, repo: Repository, ponteggio_id: int) -> int:
+        """Salva il sistema del ponteggio (fabbricante, autorizzazione, campate, pesi, libretto) nell'archivio."""
+        from sicurcantiere import ponteggio as P
+
+        p = repo.leggi("ponteggi", ponteggio_id)
+        if p is None:
+            raise ValueError("Ponteggio non trovato.")
+        dati = {k: p.get(k) for k in CAMPI_SISTEMA}
+        g = P.geometria(p)
+        dati["geometria"] = {k: g[k] for k in GEOMETRIA_SISTEMA}
+        dati["allegati"] = [{k: a[k] for k in ("tipo", "titolo", "file")}
+                            for a in repo.elenco("allegati_ponteggio", ponteggio_id=ponteggio_id)
+                            if a["tipo"] in ALLEGATI_SISTEMA]
+        nome = nome_sistema(dati)
+        if not nome:
+            raise ValueError("Indica almeno il fabbricante o il nome del sistema prima di salvarlo nell'archivio.")
+        return self.salva(SISTEMA, nome, dati, p.get("tipo") or "")
+
+    @staticmethod
+    def applica_sistema(repo: Repository, ponteggio_id: int, voce: dict[str, Any]) -> None:
+        """Copia il sistema dell'archivio nel ponteggio: dati, valori comuni della geometria, libretto e
+        autorizzazione tra gli allegati (se non ci sono già)."""
+        from sicurcantiere import ponteggio as P
+
+        dati = voce["dati"]
+        p = repo.leggi("ponteggi", ponteggio_id)
+        g = P.geometria(p)
+        g.update({k: v for k, v in (dati.get("geometria") or {}).items() if k in GEOMETRIA_SISTEMA})
+        valori = {k: dati[k] for k in CAMPI_SISTEMA if dati.get(k) is not None}
+        repo.aggiorna("ponteggi", ponteggio_id, geometria=P.testo_geometria(g), **valori)
+        presenti = {a["file"] for a in repo.elenco("allegati_ponteggio", ponteggio_id=ponteggio_id)}
+        for a in dati.get("allegati", []):
+            if a.get("file") and a["file"] not in presenti:
+                repo.inserisci("allegati_ponteggio", ponteggio_id=ponteggio_id, tipo=a.get("tipo", ""),
+                               titolo=a.get("titolo", ""), file=a["file"])
+
     # --- lavorazioni personalizzate ---
 
     def salva_lavorazione(self, repo: Repository, fase_id: int, categoria: str = "") -> int:
@@ -174,3 +221,9 @@ class ArchivioAnagrafiche:
         for r in dati.get("rischi", []):
             repo.inserisci("rischi", fase_id=fase_id, **r)
         return fase_id
+
+
+
+def nome_sistema(dati: dict[str, Any]) -> str:
+    return " ".join(v for v in (dati.get("fabbricante", ""), dati.get("sistema", ""), dati.get("modello", ""))
+                    if v).strip()

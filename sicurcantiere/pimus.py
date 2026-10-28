@@ -265,3 +265,151 @@ TIPI_ALLEGATO = [
     "Foto",
     "Altro",
 ]
+
+
+# --- testi base per tipologia (blocco 2) ---
+# Sostituiscono i testi generici delle sezioni indicate quando la tipologia principale del ponteggio è quella:
+# sequenze e accorgimenti propri di ogni sistema. Vanno adattati al libretto del fabbricante.
+TESTI_TIPOLOGIA: dict[str, dict[str, str]] = {
+    "Telai prefabbricati": {
+        "tracciamento":
+            "Si tracciano a terra gli allineamenti delle stilate a partire dagli spigoli dell'edificio, con il "
+            "passo della campata del libretto e la distanza dalla facciata non superiore a 20 cm. Le basette "
+            "regolabili sono posate sulle tavole di ripartizione; il primo telaio di ogni tratto viene messo in "
+            "bolla e in squadro con le viti delle basette prima di collegare i successivi.",
+        "ancoraggi":
+            "Gli ancoraggi collegano i montanti dei telai alla costruzione con tubo e giunto ortogonale, il più "
+            "vicino possibile al nodo telaio-traverso, secondo lo schema del libretto (maglia, posizione rispetto "
+            "alle testate, ancoraggi in più con teli o reti). Dove sul montante non c'è spazio, l'ancoraggio si "
+            "realizza su un tubo fissato con giunti ai due montanti: la disposizione è riportata nel disegno "
+            "esecutivo. Ogni ancoraggio è posato prima di salire al livello superiore.",
+        "montaggio":
+            "1. Delimitazione dell'area, posa delle tavole di ripartizione e delle basette regolabili.\n"
+            "2. Posa dei primi telai sulle basette e collegamento con correnti e diagonali; messa in bolla e in "
+            "squadro della prima campata, poi delle successive.\n"
+            "3. Posa degli impalcati del primo livello con i dispositivi di blocco inseriti e delle scale di "
+            "accesso con botola nella campata prevista.\n"
+            "4. Salita dall'interno, attraverso la botola, con il cordino agganciato ai punti indicati dal "
+            "libretto o con il parapetto provvisorio di montaggio già in opera sul livello superiore.\n"
+            "5. Innesto dei telai superiori sugli spinotti, con le spine di sicurezza dove previste; posa di "
+            "correnti, parapetti, fermapiede e diagonali di facciata secondo lo schema.\n"
+            "6. Posa degli ancoraggi del livello prima di proseguire; ripetizione fino alla quota finale.\n"
+            "7. Ultimo impalcato con i montanti che superano di almeno 1 m il piano di calpestio, parapetti di "
+            "testata, mantovana e protezioni previste.\n"
+            "8. Verifica finale del preposto, cartello con il carico ammesso e consegna del ponteggio per l'uso.",
+        "smontaggio":
+            "Lo smontaggio procede dall'alto verso il basso, livello per livello, nell'ordine inverso al "
+            "montaggio. Prima di togliere i parapetti di un livello gli addetti agganciano il cordino ai punti del "
+            "libretto; gli ancoraggi si tolgono solo quando si smonta il livello corrispondente e mai quelli dei "
+            "livelli sottostanti. Telai, correnti e impalcati sono calati con l'attrezzatura di sollevamento, mai "
+            "lanciati, e accatastati separati per tipo.",
+    },
+    "Tubi e giunti": {
+        "tracciamento":
+            "Si tracciano a terra le posizioni dei montanti secondo il passo previsto dallo schema (o dal "
+            "progetto) e la distanza dalla facciata non superiore a 20 cm. Le basette sono posate sulle tavole di "
+            "ripartizione; i primi montanti sono messi a piombo e collegati subito con correnti e traversi.",
+        "ancoraggi":
+            "Gli ancoraggi sono realizzati con tubo e giunti ortogonali collegati ai montanti in prossimità dei "
+            "nodi, con tasselli ad anello o a cravatta attorno agli elementi strutturali, secondo lo schema del "
+            "libretto. I giunti degli ancoraggi sono serrati alla coppia indicata dal fabbricante; ogni "
+            "ancoraggio è posato prima di salire al livello superiore.",
+        "montaggio":
+            "1. Delimitazione dell'area, posa delle tavole di ripartizione e delle basette.\n"
+            "2. Montanti a piombo sulle basette, collegati con i correnti longitudinali e i traversi con giunti "
+            "ortogonali serrati alla coppia indicata dal fabbricante.\n"
+            "3. Diagonali di facciata e in pianta con giunti girevoli, secondo lo schema.\n"
+            "4. Giunzioni dei montanti con giunti di testa (manicotti) sfalsate tra montanti vicini.\n"
+            "5. Impalcati o tavole accostate su traversi, con le tavole fissate contro lo spostamento e "
+            "sovrapposte sui traversi come prescritto.\n"
+            "6. Parapetti con corrente superiore ad almeno 1 m, corrente intermedio e fermapiede, sul lato "
+            "esterno e sulle testate; salita con cordino agganciato.\n"
+            "7. Ancoraggi posati man mano; verifica del serraggio dei giunti a ogni livello.\n"
+            "8. Verifica finale del preposto e consegna del ponteggio per l'uso.",
+        "smontaggio":
+            "Lo smontaggio procede dall'alto verso il basso. I giunti si allentano solo dell'elemento che si "
+            "sta togliendo; tubi e giunti sono calati con l'attrezzatura di sollevamento, i giunti raccolti in "
+            "contenitori. Gli ancoraggi e le diagonali si tolgono solo quando si smonta il livello "
+            "corrispondente.",
+    },
+    "Multidirezionale": {
+        "tracciamento":
+            "Si tracciano a terra le posizioni delle stilate con il passo dei correnti del sistema e la distanza "
+            "dalla facciata non superiore a 20 cm. Sulle basette regolabili si posano i collari di partenza, "
+            "messi in bolla con i primi correnti prima di inserire i montanti.",
+        "ancoraggi":
+            "Gli ancoraggi collegano i montanti alla costruzione con tubo e giunto o con i dispositivi del "
+            "sistema, vicino alle rosette, secondo lo schema del libretto. Ogni ancoraggio è posato prima di "
+            "salire al livello superiore.",
+        "montaggio":
+            "1. Delimitazione dell'area, posa delle tavole di ripartizione, delle basette e dei collari di "
+            "partenza.\n"
+            "2. Correnti e traversi del primo livello agganciati alle rosette e bloccati battendo i cunei; messa "
+            "in bolla del primo modulo.\n"
+            "3. Inserimento dei montanti e delle diagonali secondo lo schema; impalcati con i dispositivi di "
+            "blocco.\n"
+            "4. Salita con il parapetto di montaggio anticipato o con il cordino agganciato alle rosette o ai "
+            "punti indicati dal libretto.\n"
+            "5. Correnti di parapetto, fermapiede e diagonali del livello; ancoraggi posati man mano.\n"
+            "6. Ripetizione fino alla quota finale con i montanti che superano di almeno 1 m l'ultimo impalcato.\n"
+            "7. Verifica finale del preposto: cunei battuti, diagonali e ancoraggi presenti; consegna per l'uso.",
+        "smontaggio":
+            "Lo smontaggio procede dall'alto verso il basso, nell'ordine inverso al montaggio, con il parapetto "
+            "anticipato o il cordino agganciato. I cunei si liberano solo dell'elemento che si toglie; gli "
+            "ancoraggi si tolgono solo quando si smonta il livello corrispondente.",
+    },
+}
+TESTI_TIPOLOGIA["Montanti e traversi prefabbricati"] = TESTI_TIPOLOGIA["Telai prefabbricati"]
+
+INTEGRAZIONE_TUBI = ("\nNei tratti e nei raccordi in tubi e giunti si applicano le sequenze dei ponteggi in tubi e "
+                     "giunti: giunti ortogonali serrati alla coppia indicata, giunzioni dei montanti sfalsate, "
+                     "elementi dello stesso fabbricante e autorizzati.")
+
+
+def testo_base(sezione: str, tipologie: list[str]) -> str:
+    """Testo base della sezione per le tipologie del ponteggio (la prima è la principale)."""
+    principale = tipologie[0] if tipologie else ""
+    testo = TESTI_TIPOLOGIA.get(principale, {}).get(sezione) or dict((k, t) for k, _, t in SEZIONI)[sezione]
+    if sezione == "montaggio" and principale != "Tubi e giunti" and "Tubi e giunti" in tipologie:
+        testo += INTEGRAZIONE_TUBI
+    return testo
+
+
+# --- rischi delle operazioni di montaggio, trasformazione e smontaggio ---
+# (descrizione, probabilità, danno, misure, DPI): valutazione tipo da adattare al cantiere.
+RISCHI_MONTAGGIO: list[tuple[str, int, int, str, str]] = [
+    ("Caduta dall'alto degli addetti durante il montaggio e lo smontaggio", 3, 4,
+     "Sequenza di montaggio con parapetto anticipato o con cordino sempre agganciato ai punti indicati dal "
+     "libretto; salita solo dall'interno con scale e botole; addetti formati sotto la sorveglianza del preposto; "
+     "piano di soccorso per l'addetto sospeso.",
+     "Imbracatura anticaduta con doppio cordino e assorbitore; casco con sottogola; scarpe antinfortunistiche"),
+    ("Caduta di materiali e attrezzi dall'alto", 3, 3,
+     "Area sottostante delimitata e interdetta; fermapiede su tutti gli impalcati; mantovana e reti dove si "
+     "passa; attrezzi assicurati; nessun deposito sui bordi.",
+     "Casco; scarpe antinfortunistiche"),
+    ("Crollo o ribaltamento del ponteggio", 2, 4,
+     "Piano di appoggio verificato con ripartizione; montaggio secondo lo schema del libretto o il progetto; "
+     "ancoraggi posati man mano e mai tolti in anticipo; nessun carico oltre la classe del ponteggio.", ""),
+    ("Elettrocuzione per contatto con linee elettriche aeree", 1, 4,
+     "Distanze dell'Allegato IX da ogni parte del ponteggio e degli elementi movimentati; in difetto, linea "
+     "fuori tensione o protetta dall'ente gestore (art. 117).", ""),
+    ("Movimentazione manuale degli elementi", 3, 2,
+     "Sollevamento con carrucola o argano; elementi pesanti movimentati in due; pause e rotazione dei compiti.",
+     "Guanti"),
+    ("Urti, colpi e schiacciamenti delle mani negli innesti", 3, 2,
+     "Attenzione negli innesti di telai, spinotti e cunei; coordinamento tra gli addetti; attrezzi adatti.",
+     "Guanti; scarpe antinfortunistiche"),
+    ("Tagli e abrasioni", 2, 1, "Elementi integri, senza sbavature; maneggiare con attenzione.", "Guanti"),
+    ("Scivolamenti e cadute in piano", 2, 2,
+     "Impalcati e aree di stoccaggio ordinati e liberi; sospensione con ghiaccio o neve.",
+     "Scarpe antinfortunistiche"),
+    ("Caduta del carico sospeso durante il sollevamento", 2, 3,
+     "Ganci con chiusura di sicurezza; carichi imbracati correttamente; nessuno sotto il carico; argano "
+     "fissato secondo le istruzioni.", "Casco"),
+    ("Investimento da mezzi in transito", 2, 4,
+     "Area di montaggio delimitata e segnalata; viabilità separata; moviere per le manovre.",
+     "Indumenti ad alta visibilità"),
+    ("Esposizione a condizioni meteorologiche avverse", 2, 3,
+     "Sospensione del montaggio con vento forte, pioggia intensa, neve, ghiaccio o scarsa visibilità; verifica "
+     "del ponteggio prima della ripresa.", ""),
+]

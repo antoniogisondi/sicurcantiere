@@ -466,8 +466,8 @@ MIGRAZIONI: list[str] = [
         file TEXT NOT NULL DEFAULT ''
     );
     """,
-    # v0.25: PiMUS. Autorizzazione ministeriale del sistema (data, ultimo rinnovo, nome commerciale e schemi tipo)
-    # e linee elettriche aeree vicine al ponteggio (Allegato IX).
+    # v0.25: PiMUS. Autorizzazione ministeriale del sistema (data, ultimo rinnovo, nome commerciale e schemi tipo),
+    # linee elettriche aeree vicine al ponteggio (Allegato IX), rischi delle operazioni di montaggio.
     """
     ALTER TABLE ponteggi ADD COLUMN sistema TEXT NOT NULL DEFAULT '';
     ALTER TABLE ponteggi ADD COLUMN aut_data TEXT;
@@ -475,6 +475,15 @@ MIGRAZIONI: list[str] = [
     ALTER TABLE ponteggi ADD COLUMN schemi_tipo TEXT NOT NULL DEFAULT '';
     ALTER TABLE ponteggi ADD COLUMN linee_tensione TEXT NOT NULL DEFAULT '';
     ALTER TABLE ponteggi ADD COLUMN linee_distanza REAL NOT NULL DEFAULT 0;
+    CREATE TABLE rischi_ponteggio (
+        id INTEGER PRIMARY KEY,
+        ponteggio_id INTEGER NOT NULL REFERENCES ponteggi(id) ON DELETE CASCADE,
+        descrizione TEXT NOT NULL DEFAULT '',
+        probabilita INTEGER NOT NULL DEFAULT 1 CHECK (probabilita BETWEEN 1 AND 4),
+        danno INTEGER NOT NULL DEFAULT 1 CHECK (danno BETWEEN 1 AND 4),
+        misure TEXT NOT NULL DEFAULT '',
+        dpi TEXT NOT NULL DEFAULT ''
+    );
     """,
 ]
 

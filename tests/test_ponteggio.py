@@ -217,6 +217,9 @@ def test_pimus_con_squadra_disegni_e_allegati(repo, tmp_path):
     img = QImage(40, 30, QImage.Format.Format_RGB32)
     img.fill(QColor("#336699"))
     img.save(str(immagine))
+    for descrizione, probabilita, danno, misure, dpi in pimus.RISCHI_MONTAGGIO[:2]:
+        repo.inserisci("rischi_ponteggio", ponteggio_id=p, descrizione=descrizione, probabilita=probabilita,
+                       danno=danno, misure=misure, dpi=dpi)
     repo.inserisci("allegati_ponteggio", ponteggio_id=p, tipo="Disegno esecutivo", titolo="Tavola 1",
                    file=str(immagine))
     repo.inserisci("allegati_ponteggio", ponteggio_id=p, tipo="Libretto del fabbricante", titolo="Libretto",
@@ -230,5 +233,76 @@ def test_pimus_con_squadra_disegni_e_allegati(repo, tmp_path):
     assert "Verifica dell'appoggio" in testo and "verificata" in testo
     assert "Prospetto · Nord" in testo and "Sezione tipo" in testo
     assert "Allegato 1 · Disegno esecutivo" in testo and "File non trovato" in testo
+    assert "Valutazione dei rischi delle operazioni" in testo and "Caduta dall'alto degli addetti" in testo
+    assert "f) Misure in presenza di linee elettriche aeree" in testo and "Progetto del ponteggio" in testo
     # vista d'insieme, pianta, 2 prospetti, sezione e il disegno allegato
     assert len(doc.inline_shapes) >= 6
+
+
+def test_testi_base_per_tipologia():
+    telai = pimus.testo_base("montaggio", ["Telai prefabbricati"])
+    assert "spinotti" in telai and "tubi e giunti" not in telai
+    assert "giunti di testa" in pimus.testo_base("montaggio", ["Tubi e giunti"])
+    assert "rosette" in pimus.testo_base("montaggio", ["Multidirezionale"])
+    misto = pimus.testo_base("montaggio", ["Telai prefabbricati", "Tubi e giunti"])
+    assert misto.startswith(telai) and "raccordi in tubi e giunti" in misto
+    # sezioni senza testo specifico: il testo generico
+    generico = dict((k, t) for k, _, t in pimus.SEZIONI)["meteo"]
+    assert pimus.testo_base("meteo", ["Multidirezionale"]) == generico
+    assert pimus.testo_base("uso", []) == dict((k, t) for k, _, t in pimus.SEZIONI)["uso"]
+
+
+def test_archivio_dei_sistemi_di_ponteggio(repo, tmp_path):
+    from sicurcantiere.archivio_utente import SISTEMA, ArchivioAnagrafiche
+
+    archivio = ArchivioAnagrafiche(tmp_path / "archivio.db")
+    p = repo.inserisci("ponteggi", nome="Nord", fabbricante="Acme Ponteggi", sistema="Telaio 105", modello="T5",
+                       autorizzazione="n. 12345", aut_data="2019-05-10", classe_carico=P.CLASSI_CARICO[3][0],
+                       geometria=json.dumps({"campata": 2.5, "larghezza": 0.75, "peso_proprio": 0.27,
+                                             "tratti": [{"nome": "Nord", "lunghezza": 20}]}))
+    repo.inserisci("allegati_ponteggio", ponteggio_id=p, tipo="Libretto del fabbricante", titolo="Libretto",
+                   file="C:/Libretti/acme.pdf")
+    repo.inserisci("allegati_ponteggio", ponteggio_id=p, tipo="Foto", titolo="Facciata", file="C:/foto.jpg")
+    archivio.salva_sistema(repo, p)
+    voce = archivio.elenco(SISTEMA)[0]
+    assert voce["nome"] == "Acme Ponteggi Telaio 105 T5"
+    assert voce["dati"]["geometria"]["campata"] == 2.5 and len(voce["dati"]["allegati"]) == 1
+    # in un altro ponteggio: dati del sistema e valori comuni, la geometria del cantiere resta
+    altro = repo.inserisci("ponteggi", nome="Sud", geometria=json.dumps({"tratti": [{"nome": "Sud", "lunghezza": 7}]}))
+    archivio.applica_sistema(repo, altro, voce)
+    r = repo.leggi("ponteggi", altro)
+    assert r["fabbricante"] == "Acme Ponteggi" and r["autorizzazione"] == "n. 12345" and r["aut_data"] == "2019-05-10"
+    g = P.geometria(r)
+    assert g["campata"] == 2.5 and g["peso_proprio"] == 0.27 and g["tratti"][0]["nome"] == "Sud"
+    assert [a["titolo"] for a in repo.elenco("allegati_ponteggio", ponteggio_id=altro)] == ["Libretto"]
+    archivio.applica_sistema(repo, altro, voce)  # una seconda volta il libretto non si duplica
+    assert len(repo.elenco("allegati_ponteggio", ponteggio_id=altro)) == 1
+    with pytest.raises(ValueError):
+        archivio.salva_sistema(repo, repo.inserisci("ponteggi", nome="Senza dati"))
+    archivio.chiudi()
+
+
+def _dxf(file):
+    righe = file.read_text(encoding="cp1252").splitlines()
+    coppie = list(zip(righe[::2], righe[1::2]))
+    return coppie, [v for c, v in coppie if c == "0"]
+
+
+def test_esportazione_dxf(tmp_path):
+    from sicurcantiere.documenti import dxf_ponteggio as X
+
+    p = {**_ponteggio(), "geometria": json.dumps({
+        "tratti": [{"nome": "Nord", "lunghezza": 9}, {"nome": "Est", "lunghezza": 5, "svolta": 90}],
+        "elementi": [{"tipo": "ancoraggio_tubo", "tratto": 0, "da": 1, "a": 1, "livello": 2}]})}
+    coppie, entita = _dxf(X.esporta(p, tmp_path / "m.dxf"))
+    assert ("1", "AC1009") in coppie and entita[-1] == "EOF"
+    assert entita.count("LINE") > 100 and entita.count("3DFACE") > 10
+    layer = {v for c, v in coppie if c == "2"}
+    assert {"PONT_MONTANTI", "PONT_IMPALCATI", "PONT_ANCORAGGI", "PONT_TUBI_GIUNTI", "EDIFICIO"} <= layer
+    # quote z nel modello 3D: i montanti arrivano oltre i 12 m
+    assert max(float(v) for c, v in coppie if c in ("30", "31")) > 12
+    coppie, entita = _dxf(X.esporta(p, tmp_path / "t.dxf", X.TAVOLE_2D))
+    testi = [v for c, v in coppie if c == "1"]
+    assert "PIANTA DEL PONTEGGIO" in testi and "PROSPETTO - Nord" in testi and "PROSPETTO - Est" in testi
+    assert any(t.startswith("SEZIONE TIPO") for t in testi) and "+12,00" in testi
+    assert all(float(v) == 0 for c, v in coppie if c in ("30", "31"))  # tavole piane

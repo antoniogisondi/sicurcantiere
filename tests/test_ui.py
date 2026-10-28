@@ -472,6 +472,41 @@ def test_programma_pimus(app, tmp_path):
     voci = [pp.calcoli.elementi.item(r, 0).text() for r in range(pp.calcoli.elementi.rowCount())]
     assert "Ancoraggio su tubo e giunto" in voci and "Trave per passo carraio" in voci
 
+    # rischi del montaggio e testi base con la tipologia
+    pp._carica_rischi()
+    pp._carica_rischi()  # la seconda volta non duplica
+    assert len(repo.elenco("rischi_ponteggio", ponteggio_id=pid)) == len(pimus.RISCHI_MONTAGGIO)
+    for chiave, _, _ in pimus.SEZIONI:
+        pp.testi.imposta_testo(chiave, "")
+    pp._testi_base()
+    pp.testi.salva_in_sospeso()
+    assert "spinotti" in repo.testo(pimus.chiave_testo(pid, "montaggio"))
+    assert "raccordi in tubi e giunti" in repo.testo(pimus.chiave_testo(pid, "montaggio"))
+
+    # sistema di ponteggio dall'archivio
+    from sicurcantiere.archivio_utente import SISTEMA, ArchivioAnagrafiche
+
+    repo.aggiorna("ponteggi", pid, fabbricante="Acme", sistema="T105", autorizzazione="n. 1")
+    archivio = ArchivioAnagrafiche()
+    archivio.salva_sistema(repo, pid)
+    voce = archivio.elenco(SISTEMA)[0]
+    archivio.chiudi()
+    monkeypatch_dialogo = __import__("sicurcantiere.ui.archivio_anagrafiche", fromlist=["x"]).DialogoAnagrafiche
+    originale_exec, originale_scelta = monkeypatch_dialogo.exec, monkeypatch_dialogo.scelta
+    monkeypatch_dialogo.exec = lambda self: True
+    monkeypatch_dialogo.scelta = lambda self: voce
+    try:
+        terzo = repo.inserisci("ponteggi", nome="Nuovo")
+        pp.tabella.ricarica()
+        pp.tabella.seleziona(terzo)
+        pp._sistema_dall_archivio()
+    finally:
+        monkeypatch_dialogo.exec, monkeypatch_dialogo.scelta = originale_exec, originale_scelta
+    assert repo.leggi("ponteggi", terzo)["fabbricante"] == "Acme"
+    repo.elimina("ponteggi", terzo)
+    pp.tabella.ricarica()
+    pp.tabella.seleziona(pid)
+
     # due ponteggi diventano uno
     pp.tabella.aggiungi()
     secondo = max(r["id"] for r in repo.elenco("ponteggi"))

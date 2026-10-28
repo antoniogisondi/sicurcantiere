@@ -217,6 +217,21 @@ programma apre anche i file degli altri: per esempio il POS può partire dal fil
   - **sezione tipo** di ogni tratto.
 
   Disegnato con Qt, senza librerie CAD da installare.
+- **Esportazione DXF** per i programmi CAD (formato R12, in metri, un layer per tipo di elemento):
+  modello 3D con linee e facce, oppure tavole 2D con pianta, prospetti di tutti i tratti e sezione,
+  con titoli e quote, da completare in CAD come disegno esecutivo. Scritto senza librerie esterne.
+- **Archivio dei sistemi di ponteggio** (nell'archivio anagrafiche): «Salva il sistema
+  nell'archivio» conserva fabbricante, nome del sistema, autorizzazione con data e rinnovo, schemi
+  tipo, classe di carico, campata, larghezza, interpiano, peso proprio, ancoraggi e i file di
+  libretto e autorizzazione; «Sistema dall'archivio» li riporta in un altro ponteggio senza
+  toccarne i tratti.
+- **Testi base per tipologia**: tracciamento, ancoraggi, sequenze di montaggio e smontaggio
+  diverse per telai prefabbricati, tubi e giunti e multidirezionali, con il paragrafo per i
+  raccordi in tubi e giunti quando il ponteggio unisce tipologie diverse.
+- **Rischi del montaggio** (scheda «Rischi del montaggio»): valutazione P×D tipo di caduta
+  dall'alto, caduta di materiali, crollo, elettrocuzione (più probabile se c'è una linea aerea),
+  movimentazione dei carichi, schiacciamenti, carichi sospesi, investimento, meteo, con misure e DPI
+  da adattare; nel PiMUS come tabella colorata nel capitolo delle modalità di montaggio.
 - **Autorizzazione ministeriale** (art. 131): fabbricante, nome del sistema, numero, data, ultimo
   rinnovo con avviso quando sono passati dieci anni, schemi tipo utilizzati.
 - **Linee elettriche aeree**: tensione e distanza dal ponteggio, con avviso sotto le distanze

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from docx import Document
 
-from sicurcantiere import anagrafiche, pimus
+from sicurcantiere import anagrafiche, analisi, pimus
 from sicurcantiere import elementi_ponteggio as E
 from sicurcantiere import ponteggio as P
 from sicurcantiere.documenti import stile
@@ -29,6 +29,11 @@ def genera_pimus(repo: Repository, ponteggio_id: int, destinazione: str | Path) 
 
 def _misura(valore: float) -> str:
     return f"{valore:g} m".replace(".", ",") if valore else ""
+
+
+def _classe(livello: int) -> int:
+    """Classe colorata del livello P×D: 0 basso, 1 medio, 2 alto, 3 molto alto."""
+    return 0 if livello <= 2 else 1 if livello <= 4 else 2 if livello <= 8 else 3
 
 
 def _data(valore) -> str:
@@ -210,6 +215,19 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
     for chiave in ("montaggio", "trasformazione", "smontaggio"):
         stile.sezione(doc, titoli[chiave])
         stile.testo(doc, testi[chiave], titoli[chiave], PONTEGGI, OBBLIGATORIO)
+
+    rischi = repo.elenco("rischi_ponteggio", ponteggio_id=ponteggio_id)
+    stile.sezione(doc, "Valutazione dei rischi delle operazioni")
+    if rischi:
+        t = stile.tabella_colorata(
+            doc, ["Rischio", "P", "D", "P×D", "Misure di prevenzione e protezione", "DPI"],
+            [[r["descrizione"], str(r["probabilita"]), str(r["danno"]),
+              str(analisi.livello_rischio(r["probabilita"], r["danno"])), r["misure"], r["dpi"]] for r in rischi],
+            8, larghezze=[3.8, 0.7, 0.7, 1.0, 7.4, 3.6])
+        for riga, r in zip(t.rows[1:], rischi):
+            stile.colora_livello(riga.cells[3], _classe(analisi.livello_rischio(r["probabilita"], r["danno"])))
+    else:
+        stile.testo(doc, "", "valutazione dei rischi del montaggio", PONTEGGI, CONSIGLIATO)
 
     stile.capitolo(doc, "Regole da applicare durante l'uso", "Allegato XXII, punto 9")
     stile.testo(doc, testi["uso"], titoli["uso"], PONTEGGI, OBBLIGATORIO)

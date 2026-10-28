@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QHBoxLayout,
     QFileDialog,
     QLabel,
     QListWidget,
@@ -23,10 +24,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from sicurcantiere import pimus
+from sicurcantiere import analisi, pimus
 from sicurcantiere import ponteggio as P
 from sicurcantiere.documenti.pimus import genera_pimus
 from sicurcantiere.repository import Repository
+from sicurcantiere.ui import archivio_anagrafiche, tema
 from sicurcantiere.ui.pagine import ModuloRecord, Pagina, TestiLiberi, contesto_cantiere, primario
 from sicurcantiere.ui.ponteggio_disegno import EditorGeometria, PannelloCalcoli
 from sicurcantiere.ui.tabella import Colonna, TabellaCrud
@@ -119,6 +121,18 @@ class PaginaPonteggi(Pagina):
         carica.clicked.connect(self._carica_verifiche)
         self.verifiche.pulsanti.insertWidget(2, carica)
 
+        self.rischi = TabellaCrud(repo, "rischi_ponteggio", [
+            Colonna("descrizione", "Rischio", "testo_lungo", larghezza=240),
+            Colonna("probabilita", "P", "intero", minimo=1, massimo=4, larghezza=40),
+            Colonna("danno", "D", "intero", minimo=1, massimo=4, larghezza=40),
+            Colonna("livello", "Livello P×D", "calcolata", larghezza=130, disegno=tema.DelegatoLivello,
+                    calcola=lambda r: str(analisi.livello_rischio(r["probabilita"], r["danno"]))),
+            Colonna("misure", "Misure di prevenzione e protezione", "testo_lungo"),
+            Colonna("dpi", "DPI", larghezza=200),
+        ], valori_nuovo=lambda: {"probabilita": 2, "danno": 2})
+        self.rischi.imposta_titolo("Rischi delle operazioni di montaggio, trasformazione e smontaggio")
+        self.rischi.aggiungi_pulsante("Carica i rischi tipo del montaggio", self._carica_rischi)
+
         self.geometria = EditorGeometria(repo)
         self.geometria.modificata.connect(self._geometria_cambiata)
         self.calcoli = PannelloCalcoli(repo)
@@ -170,12 +184,29 @@ class PaginaPonteggi(Pagina):
         scorrimento_dati = QScrollArea()
         scorrimento_dati.setWidgetResizable(True)
         scorrimento_dati.setFrameShape(QFrame.Shape.NoFrame)
-        scorrimento_dati.setWidget(self.dati)
+        dati_e_archivio = QWidget()
+        lda = QVBoxLayout(dati_e_archivio)
+        lda.setContentsMargins(0, 0, 0, 0)
+        riga_archivio = QWidget()
+        lra = QHBoxLayout(riga_archivio)
+        lra.setContentsMargins(9, 6, 9, 0)
+        dall_archivio = QPushButton("Sistema dall'archivio...")
+        dall_archivio.setToolTip("Riempie fabbricante, autorizzazione, campate, pesi e libretto con un sistema già usato")
+        dall_archivio.clicked.connect(self._sistema_dall_archivio)
+        in_archivio = QPushButton("Salva il sistema nell'archivio")
+        in_archivio.clicked.connect(lambda: archivio_anagrafiche.salva_sistema(self, self.repo, self.id_))
+        lra.addWidget(dall_archivio)
+        lra.addWidget(in_archivio)
+        lra.addStretch()
+        lda.addWidget(riga_archivio)
+        lda.addWidget(self.dati)
+        scorrimento_dati.setWidget(dati_e_archivio)
         self.schede.addTab(scorrimento_dati, "Dati del ponteggio")
         self.schede.addTab(self.geometria, "Disegno")
         self.schede.addTab(self.calcoli, "Calcoli e quantità")
         self.schede.addTab(scheda_squadra, "Squadra")
         self.schede.addTab(scorrimento, "Testi del PiMUS")
+        self.schede.addTab(self.rischi, "Rischi del montaggio")
         self.schede.addTab(self.verifiche, "Verifiche (Allegato XIX)")
         self.schede.addTab(scheda_allegati, "Allegati")
         self.schede.currentChanged.connect(lambda _i: self._scheda_cambiata())
@@ -213,6 +244,7 @@ class PaginaPonteggi(Pagina):
         self.verifiche.imposta_filtro(ponteggio_id=filtro)
         self.squadra.imposta_filtro(ponteggio_id=filtro)
         self.allegati.imposta_filtro(ponteggio_id=filtro)
+        self.rischi.imposta_filtro(ponteggio_id=filtro)
         self.geometria.carica(id_)
         self.calcoli.carica(id_)
         self._aggiorna_avvisi()
@@ -362,9 +394,31 @@ class PaginaPonteggi(Pagina):
             self.allegati.ricarica()
 
     def _testi_base(self) -> None:
-        for chiave, _, testo in pimus.SEZIONI:
+        """Testi base nelle sezioni vuote, con le sequenze proprie della tipologia del ponteggio."""
+        p = self.repo.leggi("ponteggi", self.id_) if self.id_ is not None else None
+        tipologie = P.tipologie(p) if p else []
+        for chiave, _, _ in pimus.SEZIONI:
             if not self.testi.editor[chiave].toPlainText().strip():
-                self.testi.imposta_testo(chiave, testo)
+                self.testi.imposta_testo(chiave, pimus.testo_base(chiave, tipologie))
+
+    def _sistema_dall_archivio(self) -> None:
+        if self.id_ is not None and archivio_anagrafiche.prendi_sistema(self, self.repo, self.id_):
+            self._seleziona(self.id_)
+            self.tabella.ricarica()
+
+    def _carica_rischi(self) -> None:
+        if self.id_ is None:
+            return
+        p = self.repo.leggi("ponteggi", self.id_)
+        esistenti = {r["descrizione"] for r in self.repo.elenco("rischi_ponteggio", ponteggio_id=self.id_)}
+        for descrizione, probabilita, danno, misure, dpi in pimus.RISCHI_MONTAGGIO:
+            if descrizione in esistenti:
+                continue
+            if descrizione.startswith("Elettrocuzione") and p.get("linee_tensione"):
+                probabilita = 2  # linea aerea vicina al ponteggio
+            self.repo.inserisci("rischi_ponteggio", ponteggio_id=self.id_, descrizione=descrizione,
+                                probabilita=probabilita, danno=danno, misure=misure, dpi=dpi)
+        self.rischi.ricarica()
 
     def _carica_verifiche(self) -> None:
         if self.id_ is None:

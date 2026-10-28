@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from sicurcantiere.archivio_utente import IMPRESA, PERSONA, ArchivioAnagrafiche
+from sicurcantiere.archivio_utente import IMPRESA, PERSONA, SISTEMA, ArchivioAnagrafiche
 from sicurcantiere.repository import Repository
 
 RUOLO_ID = Qt.ItemDataRole.UserRole
@@ -27,7 +27,13 @@ RUOLO_ID = Qt.ItemDataRole.UserRole
 
 def _descrizione(voce: dict[str, Any]) -> str:
     d = voce["dati"]
-    if voce["tipo"] == IMPRESA:
+    if voce["tipo"] == SISTEMA:
+        g = d.get("geometria") or {}
+        parti = [f"autorizzazione {d['autorizzazione']}" if d.get("autorizzazione") else "",
+                 f"campata {g['campata']:g} m".replace(".", ",") if g.get("campata") else "",
+                 f"larghezza {g['larghezza']:g} m".replace(".", ",") if g.get("larghezza") else "",
+                 f"{len(d.get('allegati', []))} documenti" if d.get("allegati") else ""]
+    elif voce["tipo"] == IMPRESA:
         parti = [d.get("tipo", ""), d.get("partita_iva", ""), d.get("comune", "")]
         figure, lavoratori = len(d.get("figure", [])), len(d.get("lavoratori", []))
         parti.append(f"{figure} figure, {lavoratori} lavoratori")
@@ -82,7 +88,9 @@ class DialogoAnagrafiche(QDialog):
         self.albero.clear()
         gruppi: dict[str, QTreeWidgetItem] = {}
         for voce in self.archivio.elenco(self.tipo, self.cerca.text()):
-            gruppo_nome = "Imprese e lavoratori autonomi" if voce["tipo"] == IMPRESA else (voce["ruolo"] or "Senza ruolo")
+            gruppo_nome = ("Imprese e lavoratori autonomi" if voce["tipo"] == IMPRESA else
+                           f"Sistemi di ponteggio · {voce['ruolo'] or 'tipologia non indicata'}"
+                           if voce["tipo"] == SISTEMA else (voce["ruolo"] or "Senza ruolo"))
             if gruppo_nome not in gruppi:
                 gruppi[gruppo_nome] = QTreeWidgetItem(self.albero, [gruppo_nome])
                 font = gruppi[gruppo_nome].font(0)
@@ -160,6 +168,37 @@ def salva_impresa(genitore: QWidget, repo: Repository, id_: int | None) -> None:
     finally:
         archivio.chiudi()
     QMessageBox.information(genitore, "Archivio", "Impresa salvata nell'archivio con figure e maestranze.")
+
+
+def prendi_sistema(genitore: QWidget, repo: Repository, ponteggio_id: int) -> bool:
+    """Sceglie un sistema di ponteggio dall'archivio e lo applica al ponteggio."""
+    archivio = ArchivioAnagrafiche()
+    try:
+        dialogo = DialogoAnagrafiche(archivio, SISTEMA, genitore=genitore)
+        dialogo.setWindowTitle("Sistemi di ponteggio in archivio")
+        if dialogo.exec() and (voce := dialogo.scelta()):
+            archivio.applica_sistema(repo, ponteggio_id, voce)
+            return True
+        return False
+    finally:
+        archivio.chiudi()
+
+
+def salva_sistema(genitore: QWidget, repo: Repository, ponteggio_id: int | None) -> None:
+    if ponteggio_id is None:
+        QMessageBox.information(genitore, "Archivio", "Seleziona prima il ponteggio.")
+        return
+    archivio = ArchivioAnagrafiche()
+    try:
+        archivio.salva_sistema(repo, ponteggio_id)
+    except ValueError as e:
+        QMessageBox.warning(genitore, "Archivio", str(e))
+        return
+    finally:
+        archivio.chiudi()
+    QMessageBox.information(genitore, "Archivio", "Sistema di ponteggio salvato nell'archivio: fabbricante, "
+                                                  "autorizzazione, campate, pesi e libretto si ritrovano negli "
+                                                  "altri cantieri.")
 
 
 def gestisci(genitore: QWidget) -> None:
