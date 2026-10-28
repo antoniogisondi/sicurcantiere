@@ -177,6 +177,15 @@ def avvisi(ponteggio: dict[str, Any], addetti: list[dict[str, Any]] | None = Non
         messaggi.append("Indicare il preposto alle operazioni di montaggio e smontaggio (art. 136, comma 6).")
     if not ponteggio.get("impresa_id"):
         messaggi.append("Indicare l'impresa che esegue il montaggio.")
+    if "redattore" in ponteggio:
+        if not str(ponteggio.get("redattore") or "").strip():
+            messaggi.append("Indicare la persona competente che redige il PiMUS (art. 136, comma 1).")
+        if not ponteggio.get("sistema_anticaduta"):
+            messaggi.append("Indicare il sistema adottato contro le cadute durante il montaggio e lo smontaggio "
+                            "(linea vita, doppio cordino, parapetto provvisorio o definitivo montato dal basso).")
+        if str(ponteggio.get("conformita_psc") or "").startswith("Difforme") and \
+                not str(ponteggio.get("motivazione_psc") or "").strip():
+            messaggi.append("Motivare la difformità del ponteggio da quanto previsto dal PSC.")
     if "geometria" in ponteggio:
         messaggi += P.avvisi_geometria(ponteggio)
     return messaggi
@@ -262,6 +271,8 @@ TIPI_ALLEGATO = [
     "Schema degli ancoraggi",
     "Prove di tenuta degli ancoraggi",
     "Attestati di formazione",
+    "Planimetria di stoccaggio e montaggio",
+    "Foto o schemi delle fasi di montaggio",
     "Foto",
     "Altro",
 ]
@@ -413,3 +424,98 @@ RISCHI_MONTAGGIO: list[tuple[str, int, int, str, str]] = [
      "Sospensione del montaggio con vento forte, pioggia intensa, neve, ghiaccio o scarsa visibilità; verifica "
      "del ponteggio prima della ripresa.", ""),
 ]
+
+
+# --- redazione, contesto e sistemi di montaggio ---
+
+# Chi può essere la persona competente che redige il piano (art. 136, comma 1): la norma non fissa titoli.
+QUALIFICHE_REDATTORE = [
+    "Datore di lavoro con esperienza nei ponteggi",
+    "Tecnico abilitato (ingegnere, architetto, geometra, perito)",
+    "Preposto con esperienza nei ponteggi",
+    "RSPP dell'impresa",
+]
+
+CONFORMITA_PSC = ["", "Conforme a quanto previsto dal PSC", "Difforme dal PSC (motivare)", "Nessun PSC per il cantiere"]
+
+# Sistema adottato contro le cadute dall'alto durante il montaggio e lo smontaggio (punto 7.1 del piano):
+# (nome, descrizione da riportare nel PiMUS).
+SISTEMI_ANTICADUTA: list[tuple[str, str]] = [
+    ("A - Linea vita pretesata dal basso a livello intavolato",
+     "Prima di salire al livello superiore, la linea vita provvisoria viene tesa dal piano già intavolato e "
+     "fissata ai montanti nei punti indicati dal fabbricante; l'addetto sale con il cordino agganciato alla linea "
+     "e si sposta lungo la campata rimanendo sempre vincolato."),
+    ("B - Linea vita con montanti di supporto",
+     "Si montano dal basso i montanti di supporto della linea vita del sistema, con la linea tesa sopra il "
+     "livello di lavoro; gli addetti, nel numero massimo per tratto e per linea indicato dal fabbricante, "
+     "agganciano il cordino alla linea e la spostano in alto a ogni livello secondo le istruzioni del sistema."),
+    ("C - Doppio cordino e moschettone",
+     "Gli addetti indossano l'imbracatura con doppio cordino e assorbitore di energia e si agganciano con il "
+     "moschettone ai punti di ancoraggio indicati dal libretto (montanti, correnti o dispositivi dedicati), sempre "
+     "sopra il piano di calpestio; per spostarsi agganciano il secondo cordino prima di sganciare il primo, così da "
+     "restare vincolati in ogni momento."),
+    ("D - Parapetto provvisorio montato dal basso",
+     "Il parapetto provvisorio di montaggio viene installato dal livello inferiore sul livello superiore prima che "
+     "l'addetto vi salga; l'addetto lavora protetto dal parapetto, posa gli elementi definitivi e sposta il "
+     "parapetto provvisorio al livello successivo."),
+    ("E - Parapetto definitivo montato dal basso",
+     "Gli elementi del parapetto definitivo sono montati dal livello inferiore, attraverso la botola, prima della "
+     "salita sul nuovo impalcato, secondo la sequenza illustrata nel libretto del fabbricante; l'addetto accede al "
+     "livello già protetto."),
+]
+
+# Situazioni particolari da descrivere nel piano con schemi o istruzioni dedicate.
+SITUAZIONI = [
+    "Partenza su piani inclinati o terreno in pendenza",
+    "Partenza su bocche di lupo, griglie o intercapedini",
+    "Partenza stretta o passaggi pedonali a lato del ponteggio",
+    "Accesso a negozi, portoni o passi carrai sotto il ponteggio",
+    "Vincoli di facciata (terrazzi, balconi, sporgenze, rientranze)",
+    "Arrivo in quota e protezione di sommità o di gronda",
+    "Pannelli pubblicitari, teli o reti con ancoraggi aumentati",
+    "Sistemi di accesso particolari (torri scala, scale esterne)",
+    "Castelli di carico o piazzole di ricevimento dei materiali",
+    "Ponteggio su copertura, terrazzo o solaio",
+]
+
+# Testi aggiunti (punti 8 e 9): interdizione delle parti incomplete, accesso, manutenzione, cessione a terzi.
+SEZIONI += [
+    ("interdizione", "Interdizione delle parti non utilizzabili",
+     "Durante il montaggio, la trasformazione e lo smontaggio le parti del ponteggio non complete o non verificate "
+     "sono interdette all'uso con sbarramenti e il cartello «Ponteggio non utilizzabile». L'interdizione si toglie "
+     "solo dopo la verifica del preposto e la consegna del tratto per l'uso."),
+    ("accesso", "Regole per l'accesso al ponteggio",
+     "Si accede agli impalcati solo dalle scale interne con botola o dalle torri scala previste; è vietato salire "
+     "dall'esterno, arrampicarsi sui montanti o usare scale appoggiate al ponteggio. Le botole restano chiuse "
+     "dopo il passaggio."),
+    ("manutenzione", "Manutenzione e verifiche periodiche",
+     "Il preposto verifica periodicamente il ponteggio e, in ogni caso, dopo violente perturbazioni atmosferiche o "
+     "prolungate interruzioni dei lavori (art. 137): verticalità dei montanti, serraggio dei giunti, efficienza "
+     "degli ancoraggi e delle controventature, tenuta di teli e reti. Le verifiche sono registrate."),
+    ("cessione", "Cessione del ponteggio ad altre imprese",
+     "Il ponteggio è consegnato all'impresa che lo utilizza, o a quella che subentra, con il verbale di consegna "
+     "firmato dalle due parti, che riporta la configurazione, i carichi ammessi e le regole d'uso. L'impresa che "
+     "riceve il ponteggio non lo modifica: ogni trasformazione è eseguita dall'impresa di montaggio."),
+]
+
+
+def descrizione_sistema(nome: str) -> str:
+    return next((d for n, d in SISTEMI_ANTICADUTA if n == nome), "")
+
+
+def caso_progetto(ponteggio: dict[str, Any]) -> str:
+    """Caso del punto 6: A conforme agli schemi del libretto (basta il disegno), B progetto necessario, A+B
+    ponteggio misto (parti secondo schema e parti che richiedono il progetto)."""
+    from sicurcantiere import ponteggio as P
+
+    g = P.geometria(ponteggio)
+    tratti = P.tratti(ponteggio, g)
+    alti = [t for t in tratti if t.altezza > ALTEZZA_SENZA_PROGETTO]
+    speciali = {e["tipo"] for e in g["elementi"]} & {"tubi_giunti", "trave_carraia", "piazzola_carico",
+                                                      "disassamento", "castello_carico"}
+    misto = len(P.tipologie(ponteggio, g)) > 1 or bool(speciali) or (alti and len(alti) < len(tratti))
+    if not ponteggio.get("conforme_schemi", 1) or (alti and len(alti) == len(tratti)):
+        return "B - Progetto esecutivo necessario"
+    if misto:
+        return "A+B - Ponteggio misto: parti secondo gli schemi del libretto e parti da progettare o verificare"
+    return "A - Conforme agli schemi del libretto (basta il disegno esecutivo)"

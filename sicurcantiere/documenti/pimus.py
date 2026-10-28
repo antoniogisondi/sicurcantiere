@@ -72,8 +72,7 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
               ("Ponteggio", p["nome"] or Manca("ubicazione del ponteggio", PONTEGGI)),
               ("Tipologia", ", ".join(P.tipologie(p, g)))],
         data_luogo=f"{c['comune'] or ''}, {data_documento}".strip(", "),
-        firme=[("Il datore di lavoro dell'impresa che esegue il montaggio", impresa.get("datore_lavoro", "")),
-               ("Il preposto alle operazioni", preposto)],
+        firme=_firme(impresa, preposto, p),
         impresa=[impresa.get("ragione_sociale") or c["nome"] or "Ponteggio", anagrafiche.sede(impresa)
                  if impresa else ""],
         logo=impresa.get("logo", ""),
@@ -90,6 +89,10 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
         ("Opera", c["nome"] or Manca("denominazione dell'opera", CANTIERE)),
         ("Indirizzo del cantiere", indirizzo_cantiere(c) or Manca("indirizzo del cantiere", CANTIERE)),
         ("Ubicazione del ponteggio", p["nome"] or Manca("ubicazione del ponteggio", PONTEGGI)),
+        ("Opera servita", p.get("opera_servita", "") or Manca("opera servita dal ponteggio", PONTEGGI, CONSIGLIATO)),
+        ("Piano di appoggio e terreno", p["piano_appoggio"]),
+        ("Condizioni ambientali", p.get("condizioni_ambientali", "")),
+        ("Vincoli per gli ancoraggi", p.get("vincoli_ancoraggi", "")),
     ])
 
     stile.capitolo(doc, "Datore di lavoro che esegue montaggio, trasformazione e smontaggio",
@@ -99,6 +102,10 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
         ("Sede", anagrafiche.sede(impresa) if impresa else ""),
         ("Partita IVA", impresa.get("partita_iva", "")),
         ("Datore di lavoro", impresa.get("datore_lavoro") or Manca("datore di lavoro dell'impresa", IMPRESA)),
+        ("Impresa responsabile in opera", p.get("impresa_utilizzatrice", "") or "la stessa impresa"),
+        ("Persona competente che redige il piano", " · ".join(v for v in (
+            p.get("redattore", ""), p.get("redattore_qualifica", "")) if v)
+         or Manca("persona competente che redige il PiMUS (art. 136)", PONTEGGI)),
     ])
 
     stile.capitolo(doc, "Squadra di lavoratori e preposto", "Allegato XXII, punto 3, e art. 136, comma 6")
@@ -119,6 +126,9 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
     doc.add_paragraph("Gli addetti al montaggio, alla trasformazione e allo smontaggio hanno frequentato il corso "
                       "di formazione previsto dall'Allegato XXI (art. 136, comma 6), di 28 ore, con aggiornamento "
                       "di almeno 4 ore ogni 4 anni, e operano sotto la diretta sorveglianza del preposto.")
+    esperienze = [a for a in addetti if a["note"].strip()]
+    if esperienze:
+        stile.scheda(doc, [(a["nome"], a["note"]) for a in esperienze], titolo="Esperienza e note")
 
     stile.capitolo(doc, "Identificazione del ponteggio", "Allegato XXII, punto 4")
     scadenza = pimus.scadenza_autorizzazione(p)
@@ -141,10 +151,18 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
                                 + ", ".join(l.nome for l in lati if l.mantovana) if any(l.mantovana for l in lati)
          else "non prevista"),
     ])
+    if p.get("conformita_psc"):
+        stile.scheda(doc, [("Rispetto al PSC", p["conformita_psc"]),
+                           ("Motivazione", p.get("motivazione_psc", "") or (
+                               Manca("motivazione della difformità dal PSC", PONTEGGI)
+                               if p["conformita_psc"].startswith("Difforme") else ""))])
     stile.sezione(doc, "Tratti del ponteggio")
+    doc.add_paragraph("Ogni parte del ponteggio ha un codice, riportato nei disegni, per il montaggio, lo smontaggio "
+                      "e le verifiche: tratti T1, T2..., stilate S1, S2... di ogni tratto, impalcati numerati dal "
+                      "basso, ancoraggi A<tratto>.<numero>.")
     stile.tabella_colorata(
         doc, ["Tratto", "Tipologia", "Facciata", "Campate", "Impalcati", "Larghezza", "Distanza", "Quota"],
-        [[t.nome, t.tipo, _misura(t.lunghezza), f"{t.campate} × {_misura(t.campata)}",
+        [[f"T{t.indice + 1} · {t.nome}", t.tipo, _misura(t.lunghezza), f"{t.campate} × {_misura(t.campata)}",
           f"{t.livelli} (h {_misura(t.livelli * t.interpiano)})", _misura(t.larghezza), _misura(t.distanza) or "0 m",
           f"{t.quota:+.2f} m".replace(".", ",")] for t in lati], 8, larghezze=[3.2, 2.8, 1.9, 2.3, 2.4, 1.7, 1.6, 1.5])
     inseriti = g["elementi"]
@@ -182,9 +200,18 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
                                    + ("verificata" if s.verificato else
                                       f"non verificata, ripartizione minima {P._n(s.area_minima, 2)} m²")),
     ])
+    codici = P.elenco_ancoraggi(p, g)
+    if codici:
+        stile.sezione(doc, "Elenco degli ancoraggi")
+        stile.tabella_colorata(doc, ["Codice", "Tratto", "Posizione", "Impalcato", "Quota", "Tipo"],
+                               [[x["codice"], x["tratto"], x["stilata"], str(x["impalcato"]),
+                                 f"{x['quota']:+.2f} m".replace(".", ","), x["tipo"]] for x in codici],
+                               7.5, larghezze=[1.6, 3.2, 2.2, 1.7, 1.8, 6.9])
     _schemi(doc, p)
+    _cartiglio(doc, c, p, impresa, progetto_richiesto)
 
     stile.capitolo(doc, "Progetto del ponteggio", "Allegato XXII, punto 6, e artt. 132-133")
+    stile.scheda(doc, [("Caso", pimus.caso_progetto(p))])
     if progetto_richiesto:
         doc.add_paragraph("Per il ponteggio è richiesto il progetto (art. 133), comprendente calcolo di resistenza "
                           "e stabilità e disegno esecutivo, firmato da un ingegnere o architetto abilitato e "
@@ -201,6 +228,22 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
     for chiave, lettera in lettere:
         stile.sezione(doc, f"{lettera}) {titoli[chiave]}")
         stile.testo(doc, testi[chiave], titoli[chiave], PONTEGGI, OBBLIGATORIO)
+        if chiave == "stoccaggio":
+            planimetrie = [x for x in allegati if x["tipo"] == "Planimetria di stoccaggio e montaggio"]
+            for x in planimetrie:
+                stile.file_allegato(doc, x["file"], "nella pagina «Ponteggi e PiMUS», scheda «Allegati»")
+            if not planimetrie:
+                stile.testo(doc, "", "planimetria delle zone di stoccaggio e montaggio (scheda «Allegati»)",
+                            PONTEGGI, CONSIGLIATO)
+        if chiave == "dpi":
+            stile.sezione(doc, "d.1) Sistema adottato contro le cadute durante il montaggio e lo smontaggio")
+            sistema = p.get("sistema_anticaduta", "")
+            if sistema:
+                stile.scheda(doc, [("Sistema", sistema)])
+                stile.testo(doc, pimus.descrizione_sistema(sistema) or "")
+            else:
+                stile.testo(doc, "", "sistema adottato per il montaggio e lo smontaggio (punto 7.1)", PONTEGGI,
+                            OBBLIGATORIO)
         if chiave == "linee_elettriche" and p.get("linee_tensione"):
             stile.scheda(doc, [("Linea elettrica aerea", p["linee_tensione"]),
                                ("Distanza dal ponteggio", _misura(p.get("linee_distanza") or 0) or "da rilevare"),
@@ -215,6 +258,22 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
     for chiave in ("montaggio", "trasformazione", "smontaggio"):
         stile.sezione(doc, titoli[chiave])
         stile.testo(doc, testi[chiave], titoli[chiave], PONTEGGI, OBBLIGATORIO)
+    stile.sezione(doc, titoli["interdizione"])
+    stile.testo(doc, testi["interdizione"], titoli["interdizione"], PONTEGGI, CONSIGLIATO)
+    situazioni = [x for x in (p.get("situazioni") or "").split(";") if x.strip()]
+    speciali = [e for e in inseriti if e["note"].strip()]
+    if situazioni or speciali or p.get("situazioni_note"):
+        stile.sezione(doc, "Schemi particolari e istruzioni particolareggiate")
+        if situazioni:
+            stile.elenco(doc, situazioni)
+        if p.get("situazioni_note"):
+            stile.testo(doc, p["situazioni_note"])
+        if speciali:
+            stile.scheda(doc, [(f"{E.voce(e['tipo']).nome} ({E.descrizione(e, lati[e['tratto']].nome)})", e["note"])
+                               for e in speciali], titolo="Istruzioni per gli elementi particolari")
+    for x in [x for x in allegati if x["tipo"] == "Foto o schemi delle fasi di montaggio"]:
+        stile.banda(doc, x["titolo"] or "Fasi di montaggio")
+        stile.file_allegato(doc, x["file"], "nella pagina «Ponteggi e PiMUS», scheda «Allegati»")
 
     rischi = repo.elenco("rischi_ponteggio", ponteggio_id=ponteggio_id)
     stile.sezione(doc, "Valutazione dei rischi delle operazioni")
@@ -231,8 +290,12 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
 
     stile.capitolo(doc, "Regole da applicare durante l'uso", "Allegato XXII, punto 9")
     stile.testo(doc, testi["uso"], titoli["uso"], PONTEGGI, OBBLIGATORIO)
+    for chiave in ("accesso", "manutenzione", "cessione"):
+        stile.sezione(doc, titoli[chiave])
+        stile.testo(doc, testi[chiave], titoli[chiave], PONTEGGI, CONSIGLIATO)
 
-    stile.capitolo(doc, "Verifiche prima del montaggio e durante l'uso", "Allegato XXII, punto 10, e Allegato XIX")
+    stile.capitolo(doc, "Verifiche prima del montaggio e durante l'uso",
+                   "Allegato XXII, punto 10, e Allegato XIX (già Circolare MLPS n. 46/2000)")
     verifiche = repo.elenco("verifiche_ponteggio", ponteggio_id=ponteggio_id)
     if verifiche:
         t = stile.tabella_colorata(doc, ["Momento", "Verifica", "Esito", "Note"],
@@ -246,13 +309,98 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
 
     p_data = doc.add_paragraph(f"{c['comune'] or ''}, {data_documento}".strip(", "))
     stile._spaziatura(p_data, 14, 8)
-    stile.firme(doc, [("Il datore di lavoro dell'impresa che esegue il montaggio", impresa.get("datore_lavoro", "")),
-                      ("Il preposto alle operazioni", preposto)])
+    stile.firme(doc, _firme(impresa, preposto, p))
     stile.nota(doc, "Il PiMUS è redatto da persona competente e messo a disposizione del preposto e dei lavoratori "
                     "addetti; una copia, con il disegno esecutivo e il libretto del fabbricante, è tenuta in "
                     "cantiere a disposizione dell'organo di vigilanza (art. 136, comma 1).")
-    _allegati(doc, allegati)
+    _presa_visione(doc, addetti)
+    _allegati(doc, [x for x in allegati if x["tipo"] not in ("Planimetria di stoccaggio e montaggio",
+                                                            "Foto o schemi delle fasi di montaggio")])
     return salva(doc, destinazione)
+
+
+def _firme(impresa, preposto, p) -> list[tuple[str, str]]:
+    firme = [("Il datore di lavoro dell'impresa che esegue il montaggio", impresa.get("datore_lavoro", ""))]
+    redattore = p.get("redattore", "")
+    if redattore and redattore != impresa.get("datore_lavoro", ""):
+        firme.append(("La persona competente che ha redatto il piano", redattore))
+    firme.append(("Il preposto alle operazioni", preposto))
+    return firme
+
+
+def _cartiglio(doc, c, p, impresa, progetto_richiesto: bool) -> None:
+    """Cartiglio del disegno esecutivo, con le firme richieste (Allegato XXII, punto 5)."""
+    stile.sezione(doc, "Cartiglio del disegno esecutivo")
+    stile.scheda(doc, [
+        ("Cantiere", " · ".join(v for v in (c["nome"], indirizzo_cantiere(c)) if v)),
+        ("Ponteggio", p["nome"]),
+        ("Sistema", " · ".join(v for v in (p["fabbricante"], p.get("sistema", ""), p["autorizzazione"]) if v)),
+        ("Sovraccarico ammesso", p["classe_carico"] or "da indicare"),
+        ("Data", data_it(date.today())),
+    ])
+    firme = [("Il progettista" if progetto_richiesto else "La persona competente (art. 136, comma 1)",
+              p["progettista"] if progetto_richiesto else p.get("redattore", "")),
+             ("Il responsabile del cantiere", "")]
+    stile.firme(doc, firme)
+
+
+def _presa_visione(doc, addetti) -> None:
+    """Il piano è messo a disposizione del preposto e dei lavoratori (art. 136, comma 1): presa visione firmata."""
+    stile.capitolo(doc, "Presa visione del piano", "art. 136, comma 1", nuova_pagina=True)
+    doc.add_paragraph("Il preposto e i lavoratori addetti dichiarano di aver ricevuto e letto il presente piano, il "
+                      "disegno esecutivo e le istruzioni del libretto del fabbricante.")
+    righe = [[a["nome"], a["ruolo"], "", ""] for a in addetti] + [["", "", "", ""] for _ in range(max(0, 4 - len(addetti)))]
+    stile.tabella_colorata(doc, ["Nome e cognome", "Ruolo", "Data", "Firma"], righe, 9,
+                           larghezze=[5.4, 4.0, 2.8, 5.2])
+
+
+def genera_consegna(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Path:
+    """Verbale di consegna del ponteggio all'impresa che lo utilizza (cessione a terzi, Allegato XXII punto 9)."""
+    with stile.colori_documento(*stile.COLORI_PIMUS):
+        p = repo.leggi("ponteggi", ponteggio_id)
+        if p is None:
+            raise ValueError("Ponteggio inesistente")
+        c = repo.cantiere()
+        impresa = (repo.leggi("imprese", p["impresa_id"]) if p["impresa_id"] else None) or {}
+        g = P.geometria(p)
+        tratti = P.tratti(p, g)
+        doc = stile.documento_semplice(" · ".join(v for v in (c["nome"], c["comune"]) if v),
+                                       (f"Consegna del ponteggio · {p['nome']}", data_it(date.today())))
+        stile.intestazione_modulo(doc, "D.Lgs. 81/2008 · art. 136 e Allegato XXII, punto 9",
+                                  "Verbale di consegna del ponteggio", p["nome"])
+        stile.scheda(doc, [
+            ("Cantiere", " · ".join(v for v in (c["nome"], indirizzo_cantiere(c)) if v)),
+            ("Ponteggio", f"{p['nome']} · {', '.join(P.tipologie(p, g))}"),
+            ("Sistema e autorizzazione", " · ".join(v for v in (p["fabbricante"], p.get("sistema", ""),
+                                                               p["autorizzazione"]) if v)),
+            ("Consegnato da", impresa.get("ragione_sociale", "")),
+            ("Ricevuto da", p.get("impresa_utilizzatrice", "") or "______________________________"),
+            ("Tratti consegnati", "; ".join(f"T{t.indice + 1} {t.nome} ({_misura(t.lunghezza)}, "
+                                            f"{t.livelli} impalcati)" for t in tratti)),
+            ("Carico ammesso sugli impalcati", p["classe_carico"] or "______________________________"),
+        ])
+        stile.sezione(doc, "Stato del ponteggio alla consegna")
+        voci = ["Montato secondo il PiMUS e il disegno esecutivo, verificato dal preposto",
+                "Ancoraggi presenti nel numero e nelle posizioni previste",
+                "Parapetti, fermapiede e impalcati completi; botole e scale di accesso funzionanti",
+                "Mantovane, reti e protezioni dei passaggi in opera dove previste",
+                "Cartello con il carico ammesso esposto",
+                "Copia del PiMUS, del disegno esecutivo e del libretto consegnata all'impresa che riceve"]
+        stile.tabella_colorata(doc, ["Verifica", "Sì", "No", "Note"], [[v, "", "", ""] for v in voci], 9,
+                               larghezze=[10.0, 1.2, 1.2, 5.0])
+        stile.sezione(doc, "Impegni dell'impresa che riceve")
+        stile.elenco(doc, [
+            "Usare il ponteggio solo per i carichi ammessi e secondo le regole d'uso del PiMUS.",
+            "Non modificare, togliere o spostare elementi, ancoraggi, parapetti o tavole: ogni trasformazione è "
+            "richiesta all'impresa di montaggio.",
+            "Segnalare subito ogni anomalia e sospendere l'uso dopo eventi meteorologici violenti fino alla verifica.",
+            "Far accedere solo dalle scale interne o dalle torri scala previste.",
+        ])
+        p_data = doc.add_paragraph(f"{c['comune'] or ''}, ____________".strip(", "))
+        stile._spaziatura(p_data, 14, 8)
+        stile.firme(doc, [("Per l'impresa che consegna", impresa.get("datore_lavoro", "")),
+                          ("Per l'impresa che riceve", "")])
+        return salva(doc, destinazione)
 
 
 def _schemi(doc, p) -> None:

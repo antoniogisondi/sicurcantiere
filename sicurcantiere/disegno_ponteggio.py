@@ -278,6 +278,22 @@ def _elemento(e: dict[str, Any], t: P.Tratto, stilate: list[float], interno: flo
         if tipo == "tunnel":
             for s in {s0, s1, *[x for x, _ in campate()]}:
                 linea(pt(s, esterno + largo, 0), pt(s, esterno + largo, alto), "montante")
+    elif tipo == "castello_carico":
+        o0, o1 = esterno + 0.15, esterno + 1.95
+        for s in (s0, s1):
+            for o in (o0, o1):
+                linea(pt(s, o, 0), pt(s, o, cima), "torre")
+        for k in range(1, t.livelli + 1):
+            z = k * h_i
+            faccia([pt(s0, o0, z), pt(s1, o0, z), pt(s1, o1, z), pt(s0, o1, z)], "impalcato")
+            for quota in (0.5, 1.0):
+                linea(pt(s0, o1, z + quota), pt(s1, o1, z + quota), "parapetto")
+            linea(pt(s0, o1, z - h_i), pt(s1, o1, z), "diagonale")
+    elif tipo == "partenza_bocca_lupo":
+        for o in (interno, esterno):
+            linea(pt(s0 - 0.3, o, 0.05), pt(s1 + 0.3, o, 0.05), "trave")
+        faccia([pt(s0, interno - 0.05, -0.02), pt(s1, interno - 0.05, -0.02), pt(s1, esterno + 0.4, -0.02),
+                pt(s0, esterno + 0.4, -0.02)], "copertura")
     elif tipo == "torre_scala":
         o0, o1 = esterno + 0.15, esterno + 1.65
         for s in (s0, s1):
@@ -581,8 +597,16 @@ def disegna_prospetto(pittore: QPainter, area: QRectF, ponteggio: dict[str, Any]
         y = tr.schermo(0, z).y()
         pittore.drawText(QRectF(area.left() + 2, y - 9, sinistra - area.left() - 10, 18),
                          Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, f"{z:+.2f}".replace(".", ","))
+    # codici delle stilate (S1, S2...), gli stessi dell'elenco degli ancoraggi nel PiMUS
+    _font(pittore, max(9, min(16, tr.scala * 0.3)))
+    passo = max(1, round(28 / max(tr.scala * t.campata, 1)))
+    for k, s in enumerate(stilate):
+        if k % passo == 0 or k == len(stilate) - 1:
+            c = tr.schermo(s, t.quota - 0.25)
+            pittore.drawText(QRectF(c.x() - 20, c.y() + 1, 40, 14), Qt.AlignmentFlag.AlignHCenter, f"S{k + 1}")
+    _font(pittore, max(11, min(20, tr.scala * 0.4)))
     xa, xb = tr.schermo(stilate[0], 0).x(), tr.schermo(stilate[-1], 0).x()
-    y_quota = tr.schermo(0, t.quota - 0.25).y() + 16
+    y_quota = tr.schermo(0, t.quota - 0.25).y() + 20
     pittore.drawLine(QPointF(xa, y_quota), QPointF(xb, y_quota))
     for x in (xa, xb):
         pittore.drawLine(QPointF(x, y_quota - 5), QPointF(x, y_quota + 5))

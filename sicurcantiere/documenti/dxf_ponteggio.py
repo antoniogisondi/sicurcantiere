@@ -151,4 +151,27 @@ def esporta(ponteggio: dict[str, Any], percorso: str | Path, tipo: str = MODELLO
     t = max(elenco, key=lambda x: x.livelli)
     _primitive(dxf, D.modello(ponteggio, g, True, solo=t.indice), D._laterale(t, 1.0), dx=x1 + 6.0, dy=y0)
     dxf.testo(TESTI, (x1 + 6.0, y0 + t.livelli * t.interpiano + 3.0), f"SEZIONE TIPO - {t.nome}", 0.5)
+    _cartiglio(dxf, ponteggio, x1 + 6.0, cursore)
     return dxf.scrivi(percorso)
+
+
+def _cartiglio(dxf: Dxf, p: dict[str, Any], x: float, y: float) -> None:
+    """Cartiglio del disegno esecutivo (dati e caselle per le firme), da completare in CAD."""
+    righe = [
+        ("PONTEGGIO", p.get("nome", "")),
+        ("SISTEMA", " ".join(v for v in (p.get("fabbricante", ""), p.get("sistema", "")) if v)),
+        ("AUTORIZZAZIONE", p.get("autorizzazione", "")),
+        ("SOVRACCARICO", p.get("classe_carico", "")),
+        ("PERSONA COMPETENTE / PROGETTISTA", p.get("progettista") or p.get("redattore", "")),
+        ("RESPONSABILE DEL CANTIERE", ""),
+        ("DATA", ""),
+    ]
+    larghezza, alto = 16.0, 1.0
+    for n in range(len(righe) + 1):
+        dxf.linea(QUOTE, (x, y - n * alto), (x + larghezza, y - n * alto))
+    for xx in (x, x + 6.0, x + larghezza):
+        dxf.linea(QUOTE, (xx, y), (xx, y - len(righe) * alto))
+    for n, (etichetta, valore) in enumerate(righe):
+        dxf.testo(TESTI, (x + 0.2, y - n * alto - 0.65), etichetta, 0.25)
+        dxf.testo(TESTI, (x + 6.2, y - n * alto - 0.65), str(valore or ""), 0.3)
+    dxf.testo(TESTI, (x, y + 0.4), "CARTIGLIO DEL DISEGNO ESECUTIVO", 0.4)

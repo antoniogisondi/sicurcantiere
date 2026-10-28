@@ -340,6 +340,31 @@ def ancoraggi(ponteggio: dict[str, Any], g: dict[str, Any] | None = None) -> Anc
     return Ancoraggi(numero, round(area, 1), round(area / numero, 1) if numero else 0.0, maglia)
 
 
+def elenco_ancoraggi(ponteggio: dict[str, Any], g: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Ancoraggi con un codice per il montaggio e lo smontaggio: A<tratto>.<numero>, con stilata (S, contata
+    da 1), impalcato, quota e tipo. Gli ancoraggi su tubo e giunto e quelli a V inseriti a mano seguono."""
+    g = g or geometria(ponteggio)
+    risultato = []
+    for t in tratti(ponteggio, g):
+        n = 0
+        for stilata, livello in posizioni_ancoraggi(t, g):
+            n += 1
+            risultato.append({"codice": f"A{t.indice + 1}.{n:02d}", "tratto": t.nome, "stilata": f"S{stilata + 1}",
+                              "impalcato": livello, "quota": t.quota + livello * t.interpiano - 0.3,
+                              "tipo": g["tipo_ancoraggio"]})
+        for e in elementi_tratto(g, t.indice):
+            if e["tipo"] not in ("ancoraggio_tubo", "ancoraggio_doppio"):
+                continue
+            for livello in range(e["livello"], e["livello_a"] + 1):
+                for campata in range(e["da"], e["a"] + 1):
+                    n += 1
+                    risultato.append({"codice": f"A{t.indice + 1}.{n:02d}", "tratto": t.nome,
+                                      "stilata": f"campata {campata + 1}", "impalcato": livello,
+                                      "quota": t.quota + livello * t.interpiano - 0.3,
+                                      "tipo": E.voce(e["tipo"]).nome})
+    return risultato
+
+
 def cambia_ancoraggio(g: dict[str, Any], ponteggio: dict[str, Any], indice: int, stilata: int,
                       livello: int) -> dict[str, Any]:
     """Aggiunge o toglie a mano l'ancoraggio in (stilata, livello) del tratto `indice`; restituisce la

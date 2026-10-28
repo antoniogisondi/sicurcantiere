@@ -232,6 +232,30 @@ programma apre anche i file degli altri: per esempio il POS può partire dal fil
   dall'alto, caduta di materiali, crollo, elettrocuzione (più probabile se c'è una linea aerea),
   movimentazione dei carichi, schiacciamenti, carichi sospesi, investimento, meteo, con misure e DPI
   da adattare; nel PiMUS come tabella colorata nel capitolo delle modalità di montaggio.
+- **Dati del piano** (dal materiale di formazione sul PiMUS fornito dal titolare, ottobre 2026):
+  - persona competente che redige il piano, con la qualifica (datore di lavoro, tecnico, preposto o
+    RSPP), che firma in copertina e in fondo al documento;
+  - impresa responsabile del ponteggio in opera se diversa da chi lo monta, opera servita,
+    condizioni ambientali (vento, neve, altitudine, fulminazione), vincoli per gli ancoraggi;
+  - conformità al PSC, con la motivazione se difforme;
+  - sistema adottato contro le cadute durante il montaggio (punto 7.1): A linea vita pretesata dal
+    basso, B linea vita con montanti di supporto, C doppio cordino, D parapetto provvisorio montato dal
+    basso, E parapetto definitivo montato dal basso, con la descrizione nel piano;
+  - situazioni particolari da risolvere con schemi dedicati (partenze su piani inclinati o bocche di
+    lupo, passaggi e negozi, vincoli di facciata, arrivo in quota, pannelli pubblicitari, accessi,
+    castelli di carico, ponteggi su copertura) e le istruzioni particolareggiate degli elementi
+    inseriti (dalle note);
+  - esperienza di ogni addetto nella squadra.
+- **Nel documento**: codifica delle parti (tratti T1, stilate S1 numerate anche nei prospetti,
+  ancoraggi A1.01 con l'elenco per posizione e quota), caso del progetto (A conforme agli schemi,
+  B progetto, A+B ponteggio misto), cartiglio del disegno esecutivo con le firme, planimetria di
+  stoccaggio nella lettera a) e foto o schemi delle fasi nel punto 8, interdizione delle parti non
+  utilizzabili, regole di accesso, manutenzione e cessione a terzi, pagina di presa visione firmata
+  da preposto e lavoratori; verifiche intitolate anche alla Circolare MLPS 46/2000.
+- **Verbale di consegna del ponteggio** all'impresa che lo utilizza (cessione a terzi): tratti,
+  carico ammesso, controlli alla consegna, impegni di chi riceve, firme delle due imprese.
+- Nel catalogo anche **castello di carico**, **partenza su bocca di lupo** e **basetta snodata**;
+  nel DXF delle tavole il **cartiglio** del disegno esecutivo.
 - **Autorizzazione ministeriale** (art. 131): fabbricante, nome del sistema, numero, data, ultimo
   rinnovo con avviso quando sono passati dieci anni, schemi tipo utilizzati.
 - **Linee elettriche aeree**: tensione e distanza dal ponteggio, con avviso sotto le distanze

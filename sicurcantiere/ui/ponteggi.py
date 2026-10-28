@@ -63,6 +63,7 @@ class PaginaPonteggi(Pagina):
         genera = primario(QPushButton("Genera il PiMUS in Word..."))
         genera.clicked.connect(self._genera)
         self.tabella.aggiungi_pulsante("Unisci un altro ponteggio...", self._unisci)
+        self.tabella.aggiungi_pulsante("Verbale di consegna...", self._verbale_consegna)
         self.tabella.pulsanti.insertWidget(2, genera)
         self.tabella.selezione_cambiata.connect(self._seleziona)
         self.tabella.modificata.connect(self._elenco_modificato)
@@ -72,6 +73,21 @@ class PaginaPonteggi(Pagina):
         self.avvisi.setStyleSheet("color: #D93B30;")
 
         self.dati = ModuloRecord(repo, "ponteggi", [
+            (None, "Redazione del piano (art. 136, comma 1)"),
+            ("redattore", "Persona competente che redige il PiMUS"),
+            ("redattore_qualifica", "Qualifica", "scelta", pimus.QUALIFICHE_REDATTORE),
+            (None, "Contesto dell'opera e coordinamento"),
+            ("opera_servita", "Opera servita dal ponteggio", "testo_lungo"),
+            ("impresa_utilizzatrice", "Impresa responsabile del ponteggio in opera, se diversa da chi lo monta"),
+            ("condizioni_ambientali", "Condizioni ambientali (vento, neve, altitudine, fulminazione)", "testo_lungo"),
+            ("vincoli_ancoraggi", "Vincoli ed esigenze per gli ancoraggi", "testo_lungo"),
+            ("conformita_psc", "Rispetto al PSC", "scelta", pimus.CONFORMITA_PSC),
+            ("motivazione_psc", "Motivazione della difformità dal PSC", "testo_lungo"),
+            (None, "Sistema adottato contro le cadute durante il montaggio (punto 7.1)"),
+            ("sistema_anticaduta", "Sistema di montaggio e smontaggio", "scelta", [n for n, _ in pimus.SISTEMI_ANTICADUTA]),
+            (None, "Situazioni particolari (schemi e istruzioni dedicate)"),
+            ("situazioni", "Situazioni presenti nel cantiere", "spunte", pimus.SITUAZIONI),
+            ("situazioni_note", "Come vengono risolte", "testo_lungo"),
             (None, "Sistema di ponteggio e autorizzazione ministeriale (art. 131)"),
             ("fabbricante", "Fabbricante"),
             ("sistema", "Nome commerciale del sistema"),
@@ -145,7 +161,8 @@ class PaginaPonteggi(Pagina):
             Colonna("aggiornamento_data", "Ultimo aggiornamento", "data", larghezza=140),
             Colonna("scadenza", "Valida fino al", "calcolata", calcola=_scadenza, larghezza=190,
                     suggerimento="4 anni dal corso o dall'ultimo aggiornamento (almeno 4 ore)"),
-            Colonna("note", "Note"),
+            Colonna("note", "Esperienza e note", suggerimento="Esperienza nei ponteggi, dichiarazione di esperienza, "
+                                                              "altri attestati"),
         ], valori_nuovo=lambda: {"ruolo": P.ADDETTO})
         self.squadra.imposta_titolo("Squadra di montaggio")
         self.squadra.aggiungi_pulsante("Dai lavoratori dell'impresa...", self._dai_lavoratori)
@@ -287,6 +304,31 @@ class PaginaPonteggi(Pagina):
             self.calcoli.carica(self.id_)
         elif self.schede.currentWidget() is self.geometria:
             self.geometria.carica(self.id_)
+
+    def _verbale_consegna(self) -> None:
+        """Verbale di consegna del ponteggio all'impresa che lo utilizza (cessione a terzi, punto 9)."""
+        if self.id_ is None:
+            QMessageBox.information(self, "Verbale di consegna", "Seleziona prima un ponteggio.")
+            return
+        from sicurcantiere.documenti.pimus import genera_consegna
+
+        self.salva_in_sospeso()
+        p = self.repo.leggi("ponteggi", self.id_)
+        predefinito = self.repo.progetto.percorso.with_name(f"Consegna ponteggio - {p['nome'] or 'ponteggio'}.docx")
+        percorso, _ = QFileDialog.getSaveFileName(self, "Verbale di consegna", str(predefinito),
+                                                  "Documento Word (*.docx)")
+        if not percorso:
+            return
+        try:
+            file = genera_consegna(self.repo, self.id_, percorso)
+        except PermissionError:
+            QMessageBox.warning(self, "Salvataggio non riuscito", "Impossibile salvare il file: verifica che non sia "
+                                                                  "aperto in Word.")
+            return
+        from sicurcantiere.ui.anteprima import documento_creato
+        from sicurcantiere.ui.pagine import AVVISO_RESPONSABILITA
+
+        documento_creato(self, file, "Verbale di consegna generato", AVVISO_RESPONSABILITA)
 
     def _unisci(self) -> None:
         """Porta in questo ponteggio i tratti, gli elementi, la squadra, le verifiche e gli allegati di un altro

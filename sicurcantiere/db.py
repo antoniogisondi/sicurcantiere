@@ -485,6 +485,22 @@ MIGRAZIONI: list[str] = [
         dpi TEXT NOT NULL DEFAULT ''
     );
     """,
+    # v0.26: PiMUS. Persona competente che redige il piano, impresa responsabile del ponteggio in opera, contesto
+    # dell'opera, conformità al PSC, sistema adottato contro le cadute durante il montaggio, situazioni
+    # particolari (partenze, vincoli di facciata, arrivo in quota...) e data di consegna del piano ai lavoratori.
+    """
+    ALTER TABLE ponteggi ADD COLUMN redattore TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN redattore_qualifica TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN impresa_utilizzatrice TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN opera_servita TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN condizioni_ambientali TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN vincoli_ancoraggi TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN conformita_psc TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN motivazione_psc TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN sistema_anticaduta TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN situazioni TEXT NOT NULL DEFAULT '';
+    ALTER TABLE ponteggi ADD COLUMN situazioni_note TEXT NOT NULL DEFAULT '';
+    """,
 ]
 
 VERSIONE_SCHEMA = len(MIGRAZIONI)

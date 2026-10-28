@@ -56,6 +56,12 @@ CATALOGO: list[Voce] = [
          descrizione="Trave reticolare che sostiene le stilate interrotte alla base per lasciare un varco",
          avviso="Il varco con trave carraia va realizzato secondo lo schema del libretto; in caso contrario serve "
                 "il progetto (art. 133)."),
+    Voce("partenza_bocca_lupo", "Partenza su bocca di lupo, griglia o intercapedine", "Mensole e varchi",
+         a_terra=True,
+         descrizione="Traverso o trave di appoggio che scavalca la bocca di lupo e porta le basette su un appoggio "
+                     "portante",
+         avviso="Partenza su bocca di lupo o griglia: le basette appoggiano su travi o traversi verificati, mai sulla "
+                "griglia; la soluzione va illustrata nel piano."),
     Voce("mensola_interna", "Mensola interna (allargamento verso la facciata)", "Mensole e varchi", per="stilata",
          descrizione="Riduce la distanza dalla facciata dove l'opera è rientrata (balconi, cornicioni)"),
     Voce("mensola_esterna", "Mensola esterna (sbalzo)", "Mensole e varchi", per="stilata",
@@ -98,6 +104,11 @@ CATALOGO: list[Voce] = [
          descrizione="Fissato ai montanti secondo le istruzioni del fabbricante; montanti raddoppiati e ancorati",
          avviso="Argano fissato al ponteggio: montanti di sostegno rinforzati e ancorati, secondo il libretto "
                 "dell'argano e del ponteggio."),
+    Voce("castello_carico", "Castello di carico (torre per il ricevimento dei materiali)", "Sollevamento dei materiali",
+         per="pezzo", a_terra=True,
+         descrizione="Torre costruita con elementi di ponteggio, affiancata, con piani di ricevimento e parapetti",
+         avviso="Il castello di carico è costruito con elementi di ponteggio e rientra nel PiMUS: schema del libretto "
+                "o progetto, carico ammesso esposto su ogni piano, ancoraggi propri."),
     Voce("montacarichi", "Montacarichi da cantiere", "Sollevamento dei materiali", per="pezzo", a_terra=True,
          descrizione="Elevatore affiancato al ponteggio, con il proprio libretto e i cancelli ai piani"),
     # integrazioni
@@ -114,6 +125,7 @@ CATALOGO: list[Voce] = [
     Voce("tubo", "Tubo singolo", "Piccoli elementi", unita="m", per="pezzo"),
     Voce("spinotto", "Spinotto di collegamento", "Piccoli elementi", per="pezzo"),
     Voce("prolunga_basetta", "Basetta con prolunga (dislivelli)", "Piccoli elementi", per="pezzo", a_terra=True),
+    Voce("basetta_snodata", "Basetta snodata (piani inclinati)", "Piccoli elementi", per="pezzo", a_terra=True),
     Voce("tavola_ripartizione", "Tavola o piastra di ripartizione sotto la basetta", "Piccoli elementi", per="pezzo",
          a_terra=True),
     Voce("corrente_aggiuntivo", "Corrente aggiuntivo", "Piccoli elementi"),

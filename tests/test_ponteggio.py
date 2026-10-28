@@ -188,7 +188,7 @@ def test_formazione_della_squadra():
 def test_migrazione_porta_preposto_e_squadra(tmp_path):
     percorso = tmp_path / "vecchio.spm"
     conn = sqlite3.connect(percorso)
-    for n, sql in enumerate(MIGRAZIONI[:-2], 1):  # file della versione 0.23
+    for n, sql in enumerate(MIGRAZIONI[:-3], 1):  # file della versione 0.23
         conn.executescript(f"BEGIN;{sql};PRAGMA user_version = {n};COMMIT;")
     conn.execute("INSERT INTO ponteggi (nome, preposto, squadra) VALUES ('Nord', 'Luca Bianchi', 'Mario, Gino')")
     conn.commit()
@@ -305,4 +305,44 @@ def test_esportazione_dxf(tmp_path):
     testi = [v for c, v in coppie if c == "1"]
     assert "PIANTA DEL PONTEGGIO" in testi and "PROSPETTO - Nord" in testi and "PROSPETTO - Est" in testi
     assert any(t.startswith("SEZIONE TIPO") for t in testi) and "+12,00" in testi
+    assert "CARTIGLIO DEL DISEGNO ESECUTIVO" in testi and "S1" not in testi
     assert all(float(v) == 0 for c, v in coppie if c in ("30", "31"))  # tavole piane
+
+
+def test_contenuti_dal_materiale_pimus(repo, tmp_path):
+    """Persona competente, contesto, conformità al PSC, sistema 7.1, situazioni particolari, codici degli
+    ancoraggi, cartiglio, presa visione e verbale di consegna."""
+    from sicurcantiere.documenti.pimus import genera_consegna, genera_pimus
+
+    repo.aggiorna_cantiere(nome="Scuola", indirizzo="Via Roma 1", comune="Bari")
+    impresa = repo.inserisci("imprese", ragione_sociale="Edil Ponteggi", datore_lavoro="Anna Verdi")
+    p = repo.inserisci("ponteggi", nome="Facciate", impresa_id=impresa, altezza=10, autorizzazione="n. 1",
+                       geometria=json.dumps({"tratti": [{"nome": "Nord", "lunghezza": 9}],
+                                             "elementi": [{"tipo": "ancoraggio_tubo", "tratto": 0, "da": 1, "a": 1,
+                                                           "livello": 2, "note": "Tubo tra i montanti: pilastro "
+                                                                                 "arretrato"}]}))
+    avvisi = pimus.avvisi(repo.leggi("ponteggi", p))
+    assert any("persona competente" in m for m in avvisi) and any("sistema adottato" in m for m in avvisi)
+    repo.aggiorna("ponteggi", p, redattore="Ing. Paolo Neri", redattore_qualifica=pimus.QUALIFICHE_REDATTORE[1],
+                  opera_servita="Ristrutturazione della facciata", impresa_utilizzatrice="Restauri Sud srl",
+                  conformita_psc=pimus.CONFORMITA_PSC[2], sistema_anticaduta=pimus.SISTEMI_ANTICADUTA[3][0],
+                  situazioni=";".join(pimus.SITUAZIONI[:2]), situazioni_note="Basette snodate sulla rampa.")
+    avvisi = pimus.avvisi(repo.leggi("ponteggi", p))
+    assert any("difformità" in m for m in avvisi) and not any("persona competente" in m for m in avvisi)
+    repo.inserisci("addetti_ponteggio", ponteggio_id=p, nome="Luca Bianchi", ruolo=P.PREPOSTO,
+                   corso_data="2024-01-10", note="Dieci anni di montaggio di ponteggi a telai")
+    codici = P.elenco_ancoraggi(repo.leggi("ponteggi", p))
+    assert codici[0]["codice"] == "A1.01" and codici[-1]["stilata"] == "campata 2"
+    assert pimus.caso_progetto(repo.leggi("ponteggi", p)).startswith("A - ")
+    doc = Document(genera_pimus(repo, p, tmp_path / "pimus.docx"))
+    testo = "\n".join([x.text for x in doc.paragraphs] + [c.text for t in doc.tables for r in t.rows for c in r.cells])
+    for atteso in ("Ing. Paolo Neri", "Restauri Sud srl", "Ristrutturazione della facciata", "Difforme dal PSC",
+                   "d.1) Sistema adottato", "Parapetto provvisorio montato dal basso", "Partenza su piani inclinati",
+                   "Basette snodate sulla rampa", "pilastro arretrato", "A1.01", "Cartiglio del disegno esecutivo",
+                   "Presa visione del piano", "Dieci anni di montaggio", "Interdizione delle parti",
+                   "Cessione del ponteggio", "La persona competente che ha redatto il piano", "Circolare MLPS"):
+        assert atteso in testo, atteso
+    consegna = Document(genera_consegna(repo, p, tmp_path / "consegna.docx"))
+    testo = "\n".join([x.text for x in consegna.paragraphs]
+                      + [c.text for t in consegna.tables for r in t.rows for c in r.cells])
+    assert "Verbale di consegna del ponteggio" in testo and "Restauri Sud srl" in testo and "T1 Nord" in testo
