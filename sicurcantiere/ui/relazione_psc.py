@@ -34,7 +34,8 @@ CHIAVE_LOGO = "logo_studio"
 
 
 class RischiParticolari(QWidget):
-    """Allegato XI con le misure per le voci presenti, e valutazione del rischio da ordigni bellici."""
+    """Rischi da analizzare nelle lavorazioni (punto 2.2.3), Allegato XI con le misure per le voci presenti, e
+    valutazione del rischio da ordigni bellici."""
 
     def __init__(self, repo: Repository, parent=None):
         super().__init__(parent)
@@ -42,6 +43,35 @@ class RischiParticolari(QWidget):
         self._carico = False
         self._timer = QTimer(self, singleShot=True, interval=600)
         self._timer.timeout.connect(self.salva)
+
+        # rischi del punto 2.2.3: quelli trovati nelle schede delle fasi sono indicati accanto
+        self.verificato_223 = QCheckBox("Ho analizzato i rischi del punto 2.2.3: sono spuntati quelli presenti nel "
+                                        "cantiere, con le misure", self)
+        griglia_223 = QGridLayout()
+        griglia_223.setColumnStretch(1, 2)
+        griglia_223.setColumnStretch(2, 2)
+        self.voci_223: dict[str, tuple[QCheckBox, QLineEdit, QLabel]] = {}
+        for riga, (lettera, testo, _) in enumerate(relazione.RISCHI_LAVORAZIONI):
+            spunta = QCheckBox(f"{lettera})", self)
+            etichetta = QLabel(testo, self)
+            etichetta.setWordWrap(True)
+            misure = QLineEdit(self)
+            misure.setPlaceholderText("Misure generali (quelle delle fasi sono già nelle schede)")
+            trovato = QLabel(self)
+            trovato.setObjectName("hint")
+            trovato.setWordWrap(True)
+            griglia_223.addWidget(spunta, 2 * riga, 0)
+            griglia_223.addWidget(etichetta, 2 * riga, 1)
+            griglia_223.addWidget(misure, 2 * riga, 2)
+            griglia_223.addWidget(trovato, 2 * riga + 1, 1, 1, 2)
+            spunta.toggled.connect(self._modificato)
+            misure.textChanged.connect(self._modificato)
+            self.voci_223[lettera] = (spunta, misure, trovato)
+        self.verificato_223.toggled.connect(self._modificato)
+        corpo_223 = QVBoxLayout()
+        corpo_223.addWidget(self.verificato_223)
+        corpo_223.addLayout(griglia_223)
+        riquadro_223 = tema.cornice("Rischi da analizzare nelle lavorazioni (Allegato XV punto 2.2.3)", corpo_223)
 
         self.verificato = QCheckBox("Ho verificato l'elenco dei lavori comportanti rischi particolari "
                                     "(Allegato XI): sono spuntati quelli presenti nel cantiere", self)
@@ -93,6 +123,7 @@ class RischiParticolari(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(riquadro_223)
         layout.addWidget(riquadro_xi)
         layout.addWidget(riquadro_ordigni)
         layout.addStretch()
@@ -108,6 +139,12 @@ class RischiParticolari(QWidget):
         nuovo = json.dumps(dati, ensure_ascii=False)
         if nuovo != self.repo.testo(relazione.CHIAVE_ALLEGATO_XI):
             self.repo.salva_testo(relazione.CHIAVE_ALLEGATO_XI, nuovo)
+        dati_223 = {"verificato": self.verificato_223.isChecked(),
+                    "voci": {l: {"presente": sp.isChecked(), "misure": m.text().strip()}
+                             for l, (sp, m, _) in self.voci_223.items()}}
+        nuovo_223 = json.dumps(dati_223, ensure_ascii=False)
+        if nuovo_223 != self.repo.testo(relazione.CHIAVE_RISCHI_LAVORAZIONI):
+            self.repo.salva_testo(relazione.CHIAVE_RISCHI_LAVORAZIONI, nuovo_223)
         ordigni = json.dumps({"scavi": self.scavi.currentData(), "esito": self.esito.currentData(),
                               "motivazione": self.motivazione.toPlainText().strip()}, ensure_ascii=False)
         if ordigni != self.repo.testo(relazione.CHIAVE_ORDIGNI):
@@ -121,6 +158,16 @@ class RischiParticolari(QWidget):
         for n, (spunta, misure) in self.voci.items():
             spunta.setChecked(dati["voci"][n]["presente"])
             misure.setText(dati["voci"][n]["misure"])
+        dati_223 = relazione.leggi_rischi_lavorazioni(self.repo.testo(relazione.CHIAVE_RISCHI_LAVORAZIONI))
+        trovati = relazione.fasi_per_rischio(self.repo.elenco("fasi"), self.repo.rischi())
+        self.verificato_223.setChecked(dati_223["verificato"])
+        for l, (spunta, misure, etichetta) in self.voci_223.items():
+            spunta.setChecked(dati_223["voci"][l]["presente"])
+            misure.setText(dati_223["voci"][l]["misure"])
+            fasi = trovati.get(l, [])
+            etichetta.setText(("Nelle fasi: " + ", ".join(f"{f['codice']} {f['descrizione']}".strip() for f in fasi[:4])
+                               + ("..." if len(fasi) > 4 else "")) if fasi else "")
+            etichetta.setVisible(bool(fasi))
         ordigni = relazione.leggi_ordigni(self.repo.testo(relazione.CHIAVE_ORDIGNI))
         self.scavi.setCurrentIndex(max(self.scavi.findData(ordigni["scavi"]), 0))
         self.esito.setCurrentIndex(max(self.esito.findData(ordigni["esito"]), 0))
@@ -167,10 +214,20 @@ class AllegatiPSC(QWidget):
         riga_logo.addWidget(scegli)
         riga_logo.addWidget(togli)
 
+        # cosa riporta la planimetria (layout di cantiere): le voci essenziali mancanti sono segnalate nei controlli
+        griglia = QGridLayout()
+        self.contenuti: dict[str, QCheckBox] = {}
+        for n, (voce, essenziale) in enumerate(relazione.CONTENUTI_PLANIMETRIA):
+            spunta = QCheckBox(voce + ("" if essenziale else " (se presente)"), self)
+            spunta.toggled.connect(self._salva_contenuti)
+            griglia.addWidget(spunta, n // 2, n % 2)
+            self.contenuti[voce] = spunta
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.tabella, 1)
         layout.addWidget(nota)
+        layout.addWidget(tema.cornice("Cosa riporta la planimetria di cantiere", griglia))
         layout.addWidget(tema.cornice("Logo dello studio del coordinatore (copertina del PSC)", riga_logo))
 
     def _aggiungi(self) -> None:
@@ -191,6 +248,18 @@ class AllegatiPSC(QWidget):
         self.repo.salva_testo(CHIAVE_LOGO, percorso)
         self.logo.setText(percorso)
 
+    def _salva_contenuti(self, *_args) -> None:
+        if getattr(self, "_carico_contenuti", False):
+            return
+        testo = ";".join(v for v, spunta in self.contenuti.items() if spunta.isChecked())
+        if testo != self.repo.testo(relazione.CHIAVE_CONTENUTI_PLANIMETRIA):
+            self.repo.salva_testo(relazione.CHIAVE_CONTENUTI_PLANIMETRIA, testo)
+
     def carica(self) -> None:
         self.tabella.ricarica()
         self.logo.setText(self.repo.testo(CHIAVE_LOGO))
+        presenti = relazione.leggi_contenuti_planimetria(self.repo.testo(relazione.CHIAVE_CONTENUTI_PLANIMETRIA))
+        self._carico_contenuti = True
+        for voce, spunta in self.contenuti.items():
+            spunta.setChecked(voce in presenti)
+        self._carico_contenuti = False

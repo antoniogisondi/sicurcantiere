@@ -142,11 +142,26 @@ programma apre anche i file degli altri: per esempio il POS può partire dal fil
     categoria del punto 4.1.1** con subtotali e prezzario di riferimento.
 - **Tavole allegate** (punto 2.1.4): planimetria, tavola degli scavi, profilo altimetrico, come
   immagini o **PDF inseriti pagina per pagina** nel documento.
-- Firme del coordinatore, del committente o responsabile dei lavori, del CSE e, per accettazione,
-  dei datori di lavoro delle imprese.
+- **Rischi del punto 2.2.3** (lettere a-m: investimento, seppellimento, caduta dall'alto, gallerie,
+  demolizioni, incendio ed esplosione, temperatura, elettrocuzione, rumore, sostanze chimiche): per
+  ognuno si dice se è presente e con quali misure; il programma indica le fasi in cui compare,
+  cercandolo nei rischi delle schede, e lo segnala se compare nelle fasi ma non è spuntato.
+- **Cosa riporta la planimetria di cantiere** (recinzione, accessi, viabilità, stoccaggi,
+  baraccamenti, attrezzature fisse, impianti; scavi, scarichi, allacci, rifiuti, percorsi di
+  emergenza se presenti): l'elenco va nel PSC e le voci essenziali non spuntate sono segnalate.
+- **Aggiornamento del piano** (art. 92, comma 1, lettera b): quando si aggiorna (varianti, tempi,
+  nuove imprese o autonomi, nuovi rischi, proposte delle imprese dell'art. 100, comma 5), con data,
+  firma del CSE, trasmissione e verifica dell'adeguamento dei POS.
+- Firme del coordinatore e del committente o responsabile dei lavori, poi la **tabella di
+  trasmissione e presa visione** per imprese **e lavoratori autonomi**, con la data di consegna
+  (campo «PSC consegnato all'impresa il») e la firma per ricevuta e accettazione (artt. 100 e 101).
+- **Lavori pubblici** (spunta in Dati generali): il PSC messo a disposizione di tutti i concorrenti
+  alla gara vale come trasmissione (art. 101, comma 1). **Lavori privati senza permesso di
+  costruire sotto 100.000 €** (art. 90, comma 11): il CSP non serve, il PSC lo firma il CSE e i
+  controlli non chiedono il CSP; il riepilogo lo dice nel riquadro «PSC e coordinatori».
 - Nella pagina «Relazione del PSC» ogni voce ha la sua guida alla compilazione e la bozza con l'AI;
-  i controlli segnalano voci obbligatorie vuote, Allegato XI non verificato, scavi senza valutazione
-  degli ordigni, planimetria mancante, costi senza categoria.
+  i controlli segnalano voci obbligatorie vuote, Allegato XI e punto 2.2.3 non verificati, scavi
+  senza valutazione degli ordigni, planimetria mancante o incompleta, costi senza categoria.
 - **Dati da completare** come nel POS.
 - **Fascicolo dell'opera** con le schede dell'Allegato XVI e **notifica preliminare** con le voci
   dell'Allegato XII, con la stessa grafica e i dati mancanti evidenziati.

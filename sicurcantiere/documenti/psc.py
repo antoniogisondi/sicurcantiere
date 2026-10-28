@@ -366,6 +366,65 @@ def _rischi_particolari(doc, repo: Repository, fasi: list[dict[str, Any]]) -> No
                     "2-bis, e 104, comma 4-bis).")
 
 
+def _rischi_lavorazioni(doc, repo: Repository, fasi: list[dict[str, Any]], rischi: list[dict[str, Any]],
+                        nomi_fasi: dict[int, str]) -> None:
+    """Rischi dell'Allegato XV punto 2.2.3: presenza nel cantiere, lavorazioni e scelte del coordinatore."""
+    from sicurcantiere import relazione
+
+    dati = relazione.leggi_rischi_lavorazioni(repo.testo(relazione.CHIAVE_RISCHI_LAVORAZIONI))
+    trovate = relazione.fasi_per_rischio(fasi, rischi)
+    if not dati["verificato"]:
+        segnaposto(doc, doc.add_paragraph(), Manca("verifica dei rischi da analizzare nelle lavorazioni (Allegato "
+                                                   "XV punto 2.2.3)", RISCHI_PARTICOLARI, CONSIGLIATO))
+    righe, presenti = [], []
+    for lettera, rischio, _ in relazione.RISCHI_LAVORAZIONI:
+        voce = dati["voci"][lettera]
+        fasi_l = "; ".join(nomi_fasi.get(f["id"], nome_fase(f)) for f in trovate.get(lettera, []))
+        presente = voce["presente"] or (not dati["verificato"] and bool(fasi_l))
+        if voce["misure"]:
+            misure = voce["misure"]
+        elif presente and fasi_l:
+            misure = "Misure nelle schede delle lavorazioni indicate."
+        elif presente:
+            misure = Manca(f"scelte e misure per il rischio del punto 2.2.3, lettera {lettera})", RISCHI_PARTICOLARI,
+                           CONSIGLIATO)
+        else:
+            misure = ""
+        stato = ("Presente" if voce["presente"] else "Non presente") if dati["verificato"] else (
+            "Da verificare" if fasi_l else "—")
+        righe.append([f"{lettera})", rischio, stato, fasi_l or "—", misure])
+        presenti.append(presente)
+    t = stile.tabella_colorata(doc, ["Lett.", "Rischio", "Nel cantiere", "Lavorazioni", "Scelte e misure"], righe,
+                               7.5, larghezze=[1.0, 4.6, 2.0, 4.2, 5.6])
+    for riga, presente in zip(t.rows[1:], presenti):
+        if presente:
+            stile.colora_livello(riga.cells[2], 2)
+
+
+def _trasmissione(doc, c: dict[str, Any], imprese: list[dict[str, Any]]) -> None:
+    """Consegna del piano a imprese e lavoratori autonomi, con data e firma per ricevuta (artt. 100 e 101)."""
+    righe = []
+    for i in imprese:
+        if not i["ragione_sociale"].strip():
+            continue
+        autonomo = anagrafiche.autonomo(i)
+        ruolo = "Lavoratore autonomo" if autonomo else f"Impresa {(i.get('tipo') or 'esecutrice').lower()}"
+        righe.append([i["ragione_sociale"], ruolo,
+                      i.get("datore_lavoro", "") if not autonomo else i.get("ragione_sociale", ""),
+                      data_it(i["psc_ricevuto_data"]) if i.get("psc_ricevuto_data") else "", ""])
+    if not righe:
+        segnaposto(doc, doc.add_paragraph(), Manca("imprese esecutrici e lavoratori autonomi a cui consegnare il "
+                                                   "piano", IMPRESE))
+        return
+    stile.tabella_colorata(doc, ["Impresa o lavoratore autonomo", "Ruolo", "Nella persona di", "Consegnato il",
+                                 "Firma per ricevuta e accettazione"], righe, 7.5,
+                           larghezze=[4.4, 2.6, 3.4, 2.2, 4.8])
+    if c.get("lavori_pubblici"):
+        stile.nota(doc, "Trattandosi di lavori pubblici, la messa a disposizione del piano a tutti i concorrenti "
+                        "alla gara di appalto vale come trasmissione alle imprese invitate a presentare offerte "
+                        "(art. 101, comma 1).")
+
+
 def _costi(doc, c: dict[str, Any], costi: list[dict[str, Any]]) -> None:
     from sicurcantiere.relazione import CATEGORIE_COSTI
 
@@ -454,7 +513,10 @@ def _genera(repo: Repository, destinazione: str | Path) -> Path:
                          (f"Piano di sicurezza e coordinamento · {c['nome']}".strip(" ·"), revisione))
 
     # --- copertina ---
-    firme_copertina = [("Il coordinatore per la progettazione", csp["nome"] if csp else "")]
+    if analisi.deroga_art_90_c11(c):  # art. 90, comma 11: il PSC lo redige il coordinatore per l'esecuzione
+        firme_copertina = [("Il coordinatore per l'esecuzione", cse["nome"] if cse else "")]
+    else:
+        firme_copertina = [("Il coordinatore per la progettazione", csp["nome"] if csp else "")]
     if responsabile and responsabile["nome"] != (committente or {}).get("nome"):
         firme_copertina.append(("Per presa visione, il responsabile dei lavori", responsabile["nome"]))
     else:
@@ -662,6 +724,11 @@ def _genera(repo: Repository, destinazione: str | Path) -> Path:
             stile.testo(doc, "", f"rischi della fase {nome_fase(f)} (nessun rischio valutato)", RISCHI, OBBLIGATORIO)
 
     stile.capitolo(doc, "Rischi individuati e lavorazioni in cui compaiono", "Allegato XV punti 2.2.3 e 2.2.4")
+    stile.sezione(doc, "Rischi da analizzare nelle lavorazioni", "Allegato XV punto 2.2.3")
+    doc.add_paragraph("Per ciascuno dei rischi elencati dal punto 2.2.3 dell'Allegato XV si indica se è presente nel "
+                      "cantiere, in quali lavorazioni compare e le scelte progettuali e organizzative adottate.")
+    _rischi_lavorazioni(doc, repo, fasi, rischi, nomi_fasi)
+    stile.sezione(doc, "Riepilogo dei rischi per livello", "Allegato XV punto 2.2.4")
     doc.add_paragraph("Si riporta il riepilogo dei rischi delle lavorazioni, in ordine decrescente di livello, con le "
                       "fasi in cui compaiono e le misure previste.")
     _rischi_per_rischio(doc, rischi, nomi_fasi)
@@ -746,7 +813,25 @@ def _genera(repo: Repository, destinazione: str | Path) -> Path:
     stile.capitolo(doc, "Stima dei costi della sicurezza", "Allegato XV punto 2.1.2, lettera l), e punto 4")
     _costi(doc, c, costi)
 
-    # --- allegati e firme ---
+    # --- aggiornamento, allegati, trasmissione e firme ---
+    stile.capitolo(doc, "Aggiornamento del piano", "art. 92, comma 1, lettera b), e Allegato XV punto 2.3.2")
+    doc.add_paragraph("Il coordinatore per l'esecuzione adegua il piano all'evoluzione dei lavori e alle modifiche "
+                      "intervenute, valutando le proposte delle imprese esecutrici. Il piano si aggiorna in "
+                      "particolare quando:")
+    stile.elenco(doc, [
+        "cambiano i contenuti dei lavori o si introducono varianti al progetto;",
+        "cambia la tempistica di realizzazione: il cronoprogramma si verifica periodicamente, previa consultazione "
+        "della direzione dei lavori, delle imprese esecutrici e dei lavoratori autonomi interessati;",
+        "entra in cantiere una nuova impresa o un nuovo lavoratore autonomo, o cambiano i subappalti;",
+        "emergono rischi o interferenze non previsti, anche dai sopralluoghi del coordinatore;",
+        "le imprese presentano proposte di integrazione accolte dal coordinatore (art. 100, comma 5).",
+    ])
+    doc.add_paragraph("Ogni aggiornamento riporta la data di emissione e la descrizione delle modifiche nella tabella "
+                      "delle revisioni, è firmato dal coordinatore per l'esecuzione e trasmesso al committente, alle "
+                      "imprese esecutrici e ai lavoratori autonomi per presa visione e accettazione; le imprese lo "
+                      "mettono a disposizione dei propri rappresentanti dei lavoratori per la sicurezza e verificano "
+                      "se occorre adeguare il proprio POS.")
+
     stile.capitolo(doc, "Allegati e firme")
     tavole = [a for a in allegati if a["tipo"] != TIPO_FOTO]
     voci_allegati = [f"{a['tipo']}" + (f": {a['titolo']}" if a["titolo"] else "") + ";" for a in tavole]
@@ -756,24 +841,38 @@ def _genera(repo: Repository, destinazione: str | Path) -> Path:
     if not any(a["tipo"] == "Planimetria di cantiere" for a in tavole):
         segnaposto(doc, doc.add_paragraph(), Manca("planimetria del cantiere (Allegato XV punto 2.1.4)", TAVOLE,
                                                    OBBLIGATORIO))
-    doc.add_paragraph("Il coordinatore per la progettazione dichiara di aver redatto il presente piano di sicurezza "
-                      "e coordinamento ai sensi dell'art. 100 e dell'Allegato XV del D.Lgs. 81/2008. Il committente "
-                      "o il responsabile dei lavori lo trasmette a tutte le imprese invitate a presentare offerte; "
-                      "le imprese esecutrici ne prendono visione e lo mettono a disposizione dei rappresentanti dei "
-                      "lavoratori per la sicurezza almeno dieci giorni prima dell'inizio dei lavori (art. 101, "
-                      "comma 1, e art. 100, comma 4).")
+    else:
+        from sicurcantiere import relazione
+
+        riportati = relazione.leggi_contenuti_planimetria(repo.testo(relazione.CHIAVE_CONTENUTI_PLANIMETRIA))
+        voci = [v for v, _ in relazione.CONTENUTI_PLANIMETRIA if v in riportati]
+        if voci:
+            doc.add_paragraph("La planimetria di cantiere riporta:")
+            stile.elenco(doc, [v[0].lower() + v[1:] + ";" for v in voci[:-1]] + [voci[-1][0].lower() + voci[-1][1:]
+                                                                                 + "."])
+    deroga = analisi.deroga_art_90_c11(c)
+    redattore = "Il coordinatore per l'esecuzione" if deroga else "Il coordinatore per la progettazione"
+    doc.add_paragraph(f"{redattore} dichiara di aver redatto il presente piano di sicurezza e coordinamento ai sensi "
+                      "dell'art. 100 e dell'Allegato XV del D.Lgs. 81/2008"
+                      + (", svolgendo anche le funzioni del coordinatore per la progettazione (lavori privati non "
+                         "soggetti a permesso di costruire e di importo inferiore a 100.000 euro, art. 90, comma 11)"
+                         if deroga else "")
+                      + ". Il committente o il responsabile dei lavori lo trasmette a tutte le imprese invitate a "
+                      "presentare offerte; prima dell'inizio dei lavori l'impresa affidataria lo trasmette alle "
+                      "imprese esecutrici e ai lavoratori autonomi (art. 101, commi 1 e 2). Le imprese esecutrici ne "
+                      "prendono visione e lo mettono a disposizione dei rappresentanti dei lavoratori per la "
+                      "sicurezza almeno dieci giorni prima dell'inizio dei lavori (art. 100, comma 4); possono "
+                      "presentare al coordinatore per l'esecuzione proposte di integrazione (art. 100, comma 5).")
     p = doc.add_paragraph(f"{c['comune'] or ''}, {data_documento}".strip(", "))
     stile._spaziatura(p, 8, 8)
-    firme = [("Il coordinatore per la progettazione", csp["nome"] if csp else ""),
+    firme = [(redattore, ((cse if deroga else csp) or {}).get("nome", "")),
              ("Per presa visione, il committente" if not responsabile else
               "Per presa visione, il responsabile dei lavori", (responsabile or committente or {}).get("nome", ""))]
-    if cse:
+    if cse and not deroga:
         firme.append(("Per presa visione, il coordinatore per l'esecuzione", cse["nome"]))
-    for i in imprese:
-        if i["ragione_sociale"].strip() and not anagrafiche.autonomo(i):
-            firme.append((f"Per presa visione e accettazione, il datore di lavoro di {i['ragione_sociale']}",
-                          i["datore_lavoro"]))
     stile.firme(doc, firme)
+    stile.sezione(doc, "Trasmissione e presa visione del piano", "artt. 100 e 101 del D.Lgs. 81/2008")
+    _trasmissione(doc, c, imprese)
     _tavole(doc, allegati)
 
     return salva(doc, destinazione)

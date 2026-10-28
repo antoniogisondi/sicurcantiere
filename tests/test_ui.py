@@ -1343,3 +1343,36 @@ def test_revisione_ux_elenco_dettaglio_e_documenti(app, tmp_path):
     assert not any(s.sezione == "Fascicolo" for s in controlli.controlla(repo))
     f.salva()
     f.close()
+
+
+def test_psc_rischi_2_2_3_planimetria_e_lavori_pubblici(app, tmp_path):
+    import json
+
+    from sicurcantiere import relazione
+    from sicurcantiere.ui.pagine import PaginaDatiGenerali
+    from sicurcantiere.ui.relazione_psc import AllegatiPSC, RischiParticolari
+
+    repo = Repository(Progetto(tmp_path / "p.scs", crea=True))
+    f = repo.importa_lavorazione(LAVORAZIONI[0])
+    repo.inserisci("rischi", fase_id=f, descrizione="Caduta dall'alto", probabilita=2, danno=3)
+    r = RischiParticolari(repo)
+    r.carica()
+    spunta, misure, etichetta = r.voci_223["c"]
+    assert etichetta.text().startswith("Nelle fasi:")
+    r.verificato_223.setChecked(True)
+    spunta.setChecked(True)
+    misure.setText("Parapetti e ponteggi")
+    r.salva()
+    dati = json.loads(repo.testo(relazione.CHIAVE_RISCHI_LAVORAZIONI))
+    assert dati["verificato"] and dati["voci"]["c"] == {"presente": True, "misure": "Parapetti e ponteggi"}
+
+    a = AllegatiPSC(repo)
+    a.carica()
+    a.contenuti["Recinzione del cantiere"].setChecked(True)
+    assert relazione.leggi_contenuti_planimetria(repo.testo(relazione.CHIAVE_CONTENUTI_PLANIMETRIA)) == {
+        "Recinzione del cantiere"}
+
+    pagina = PaginaDatiGenerali(repo)
+    pagina.aggiorna()
+    pagina.pubblici.setChecked(True)
+    assert repo.cantiere()["lavori_pubblici"] == 1

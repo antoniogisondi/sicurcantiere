@@ -152,6 +152,78 @@ def leggi_allegato_xi(testo: str) -> dict:
                          "misure": str((voci.get(n) or {}).get("misure") or "")} for n, _ in ALLEGATO_XI}}
 
 
+# --- rischi da analizzare nelle lavorazioni (Allegato XV punto 2.2.3) ---
+
+CHIAVE_RISCHI_LAVORAZIONI = "rischi_2_2_3"
+# (lettera, rischio, parole che lo fanno riconoscere nei rischi delle fasi)
+RISCHI_LAVORAZIONI: list[tuple[str, str, tuple[str, ...]]] = [
+    ("a", "Investimento da veicoli circolanti nell'area di cantiere", ("investiment",)),
+    ("b", "Seppellimento negli scavi", ("seppelliment", "franament", "sprofond", "crollo delle pareti")),
+    ("c", "Caduta dall'alto", ("caduta dall'alto", "cadute dall'alto", "caduta da")),
+    ("d", "Insalubrità dell'aria nei lavori in galleria", ("galleri",)),
+    ("e", "Instabilità delle pareti e della volta nei lavori in galleria", ("galleri",)),
+    ("f", "Estese demolizioni o manutenzioni, se le modalità tecniche sono definite in fase di progetto",
+     ("demoliz",)),
+    ("g", "Incendio o esplosione connessi con lavorazioni e materiali pericolosi", ("incendi", "esplosion")),
+    ("h", "Sbalzi eccessivi di temperatura", ("microclima", "temperatur", "colpo di calore", "freddo")),
+    ("i", "Elettrocuzione", ("elettrocuz", "contatto elettric", "elettric")),
+    ("l", "Rumore", ("rumore",)),
+    ("m", "Uso di sostanze chimiche", ("chimic", "sostanz", "inalazione", "polveri")),
+]
+
+
+def leggi_rischi_lavorazioni(testo: str) -> dict:
+    """{"verificato": bool, "voci": {lettera: {"presente": bool, "misure": str}}}"""
+    try:
+        dati = json.loads(testo) if testo.strip() else {}
+    except ValueError:
+        dati = {}
+    voci = dati.get("voci") if isinstance(dati.get("voci"), dict) else {}
+    return {"verificato": bool(dati.get("verificato")),
+            "voci": {l: {"presente": bool((voci.get(l) or {}).get("presente")),
+                         "misure": str((voci.get(l) or {}).get("misure") or "")} for l, _, _ in RISCHI_LAVORAZIONI}}
+
+
+def fasi_per_rischio(fasi: list[dict], rischi: list[dict]) -> dict[str, list[dict]]:
+    """Per ogni lettera del punto 2.2.3, le fasi che hanno un rischio corrispondente nelle loro schede."""
+    per_fase: dict[int, str] = {}
+    for r in rischi:
+        per_fase[r["fase_id"]] = f"{per_fase.get(r['fase_id'], '')} {r['descrizione']} {r.get('fonte', '')}".lower()
+    risultato: dict[str, list[dict]] = {}
+    for lettera, _, parole in RISCHI_LAVORAZIONI:
+        # le gallerie si riconoscono anche dal nome della lavorazione
+        trovate = [f for f in fasi
+                   if any(p in per_fase.get(f["id"], "") or
+                          (lettera in "de" and p in f"{f.get('lavorazione', '')} {f.get('descrizione', '')}".lower())
+                          for p in parole)]
+        if trovate:
+            risultato[lettera] = trovate
+    return risultato
+
+
+# --- contenuti della planimetria di cantiere (layout) ---
+
+CHIAVE_CONTENUTI_PLANIMETRIA = "planimetria_contenuti"
+CONTENUTI_PLANIMETRIA: list[tuple[str, bool]] = [  # (voce, essenziale)
+    ("Recinzione del cantiere", True),
+    ("Accessi pedonali e carrabili", True),
+    ("Viabilità interna ed esterna", True),
+    ("Zone di carico, scarico e stoccaggio dei materiali", True),
+    ("Baraccamenti e servizi igienico-assistenziali", True),
+    ("Posizione delle attrezzature fisse (gru, betoniere, silos)", True),
+    ("Impianti elettrici e idrici di cantiere", True),
+    ("Punti di scavo", False),
+    ("Reti di scarico delle acque e fognature", False),
+    ("Allacci ai servizi pubblici", False),
+    ("Zone di deposito dei rifiuti e dei materiali infiammabili", False),
+    ("Percorsi di emergenza e punto di raccolta", False),
+]
+
+
+def leggi_contenuti_planimetria(testo: str) -> set[str]:
+    return {v for v in (testo or "").split(";") if v}
+
+
 # --- ordigni bellici inesplosi (art. 91, comma 2-bis) ---
 
 CHIAVE_ORDIGNI = "ordigni_bellici"

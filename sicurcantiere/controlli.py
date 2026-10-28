@@ -64,10 +64,16 @@ def controlla(repo: Repository) -> list[Segnalazione]:
     if "Committente" not in ruoli:
         errore("Soggetti", "Indicare il committente.")
     if analisi.obblighi(imprese, fasi).psc:
-        for ruolo in ("Coordinatore per la progettazione (CSP)", "Coordinatore per l'esecuzione (CSE)"):
-            if ruolo not in ruoli:
-                errore("Soggetti", f"Indicare il {ruolo[0].lower()}{ruolo[1:]}, obbligatorio in presenza di più "
-                                      "imprese esecutrici (art. 90, commi 3 e 4).")
+        if analisi.deroga_art_90_c11(c):
+            # lavori privati senza permesso di costruire sotto 100.000 €: il CSE svolge anche le funzioni del CSP
+            if "Coordinatore per l'esecuzione (CSE)" not in ruoli:
+                errore("Soggetti", "Indicare il coordinatore per l'esecuzione (CSE), che in questo caso redige "
+                                   "anche il PSC e il fascicolo (art. 90, comma 11).")
+        else:
+            for ruolo in ("Coordinatore per la progettazione (CSP)", "Coordinatore per l'esecuzione (CSE)"):
+                if ruolo not in ruoli:
+                    errore("Soggetti", f"Indicare il {ruolo[0].lower()}{ruolo[1:]}, obbligatorio in presenza di "
+                                          "più imprese esecutrici (art. 90, commi 3 e 4).")
 
     if not imprese:
         avviso("Imprese", "Inserire le imprese del cantiere.")
@@ -126,8 +132,28 @@ def controlla(repo: Repository) -> list[Segnalazione]:
     elif con_scavi and ordigni["scavi"] == "No":
         avviso("Rischi particolari", "Verificare la presenza di scavi: sono indicati come assenti, ma il "
                                      "cronoprogramma contiene fasi di scavo.")
+    rl = relazione.leggi_rischi_lavorazioni(repo.testo(relazione.CHIAVE_RISCHI_LAVORAZIONI))
+    if not rl["verificato"]:
+        avviso("Rischi particolari", "Verificare i rischi da analizzare nelle lavorazioni (Allegato XV punto 2.2.3).")
+    else:
+        nomi = {l: r for l, r, _ in relazione.RISCHI_LAVORAZIONI}
+        for lettera, trovate in relazione.fasi_per_rischio(fasi, rischi).items():
+            if not rl["voci"][lettera]["presente"]:
+                avviso("Rischi particolari", f"Punto 2.2.3 lettera {lettera}): il rischio «{nomi[lettera]}» compare "
+                                             f"nelle fasi ({', '.join(f['codice'] or f['descrizione'] for f in trovate)})"
+                                             " ma non è indicato come presente nel cantiere.")
+        for lettera, voce in rl["voci"].items():
+            if voce["presente"] and not voce["misure"].strip():
+                avviso("Rischi particolari", f"Punto 2.2.3 lettera {lettera}): indicare le scelte e le misure "
+                                             f"per il rischio «{nomi[lettera]}».")
     if not any(a["tipo"] == "Planimetria di cantiere" for a in repo.elenco("allegati_psc")):
         avviso("Tavole", "Allegare almeno una planimetria del cantiere (Allegato XV punto 2.1.4).")
+    else:
+        riportati = relazione.leggi_contenuti_planimetria(repo.testo(relazione.CHIAVE_CONTENUTI_PLANIMETRIA))
+        mancanti = [v for v, essenziale in relazione.CONTENUTI_PLANIMETRIA if essenziale and v not in riportati]
+        if mancanti:
+            avviso("Tavole", "Verificare che la planimetria di cantiere riporti: "
+                             + ", ".join(v[0].lower() + v[1:] for v in mancanti) + ".")
     senza_categoria = [c for c in repo.elenco("costi") if not c["categoria"]]
     if senza_categoria:
         avviso("Costi", f"Assegnare la categoria (Allegato XV punto 4.1.1) alle voci di costo che ne "

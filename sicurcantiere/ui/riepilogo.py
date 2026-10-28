@@ -36,6 +36,7 @@ def calcola(repo: Repository) -> list[Voce]:
     periodo = analisi.periodo_lavori(fasi)
     ug = analisi.uomini_giorno(fasi)
     obblighi = analisi.obblighi(imprese, fasi)
+    deroga = analisi.deroga_art_90_c11(c)
     interferenze = analisi.interferenze(fasi, analisi.livelli_fasi(rischi))
     prescrizioni = repo.prescrizioni()
     gravi = [i for i in interferenze if i.gravita >= 6]
@@ -69,7 +70,8 @@ def calcola(repo: Repository) -> list[Voce]:
              (ERRORE if scoperte else ATTENZIONE if interferenze else OK) if periodo else NEUTRO, "Interferenze"),
         Voce("psc", "PSC e coordinatori",
              ("Obbligatori" if obblighi.psc else "Non obbligatori") if determinabile else "Da determinare",
-             ("art. 90, commi 3 e 4 (più imprese)" if obblighi.psc else "Una sola impresa esecutrice")
+             (("art. 90, c. 11: CSP non necessario, il PSC lo redige il CSE" if deroga else
+               "art. 90, commi 3 e 4 (più imprese)") if obblighi.psc else "Una sola impresa esecutrice")
              if determinabile else da_determinare,
              (ATTENZIONE if obblighi.psc else OK) if determinabile else NEUTRO, "Soggetti"),
         Voce("notifica", "Notifica preliminare",

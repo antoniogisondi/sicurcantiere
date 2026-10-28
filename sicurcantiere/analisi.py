@@ -244,3 +244,19 @@ def obblighi(imprese: list[dict[str, Any]], fasi: list[dict[str, Any]]) -> Obbli
         psc=piu_imprese,
         notifica=piu_imprese or ug >= SOGLIA_UOMINI_GIORNO,
     )
+
+
+SOGLIA_ART_90_C11 = 100_000.0
+
+
+def deroga_art_90_c11(cantiere: dict[str, Any]) -> bool:
+    """Lavori privati non soggetti a permesso di costruire e di importo inferiore a 100.000 euro.
+
+    In questo caso non serve il coordinatore per la progettazione: il PSC e il fascicolo li redige il
+    coordinatore per l'esecuzione (art. 90, comma 11, del D.Lgs. 81/2008). Senza importo non si decide.
+    """
+    if cantiere.get("lavori_pubblici") or not cantiere.get("importo_lavori"):
+        return False
+    titolo = (cantiere.get("titolo_abilitativo") or "").lower()
+    permesso = "permesso" in titolo or "pdc" in titolo.replace(".", "").replace(",", " ").split()
+    return not permesso and cantiere["importo_lavori"] < SOGLIA_ART_90_C11

@@ -1067,3 +1067,70 @@ def test_patente_crediti_e_idoneita(repo, tmp_path):
     testo = _testo_docx(genera_verifica_idoneita(repo, autonomo, tmp_path / "a.docx"))
     assert "Allegato XVII punto 2" in testo and "Documentazione incompleta" not in testo
     assert "PC-123" in _testo_docx(genera_psc(repo, tmp_path / "psc.docx"))
+
+
+def test_deroga_art_90_comma_11():
+    assert analisi.deroga_art_90_c11({"importo_lavori": 60000, "titolo_abilitativo": "CILA"})
+    assert not analisi.deroga_art_90_c11({"importo_lavori": 60000, "titolo_abilitativo": "Permesso di costruire"})
+    assert not analisi.deroga_art_90_c11({"importo_lavori": 60000, "titolo_abilitativo": "PdC n. 12"})
+    assert not analisi.deroga_art_90_c11({"importo_lavori": 150000, "titolo_abilitativo": "SCIA"})
+    assert not analisi.deroga_art_90_c11({"importo_lavori": 60000, "lavori_pubblici": 1})
+    assert not analisi.deroga_art_90_c11({"importo_lavori": 0})
+
+
+def test_psc_rischi_2_2_3_trasmissione_e_aggiornamento(repo, tmp_path):
+    import json
+
+    from sicurcantiere import controlli, relazione
+
+    a = _cantiere_completo(repo)
+    repo.aggiorna("imprese", a, psc_ricevuto_data="2025-09-10")
+    repo.inserisci("imprese", ragione_sociale="Giallo Luigi", tipo="Lavoratore autonomo")
+    f = repo.elenco("fasi")[0]
+    repo.inserisci("rischi", fase_id=f["id"], descrizione="Caduta dall'alto", probabilita=2, danno=3,
+                   misure="Parapetti")
+    messaggi = [x.messaggio for x in controlli.controlla(repo)]
+    assert any("2.2.3" in m for m in messaggi)
+
+    repo.salva_testo(relazione.CHIAVE_RISCHI_LAVORAZIONI, json.dumps(
+        {"verificato": True, "voci": {"l": {"presente": True, "misure": ""}}}))
+    messaggi = [x.messaggio for x in controlli.controlla(repo)]
+    assert any("lettera c)" in m and "non è indicato" in m for m in messaggi)  # caduta dall'alto nelle fasi
+    assert any("lettera l)" in m and "indicare le scelte" in m for m in messaggi)
+
+    testo = _testo_docx(genera_psc(repo, tmp_path / "psc.docx"))
+    for atteso in ("Rischi da analizzare nelle lavorazioni", "Seppellimento negli scavi", "Aggiornamento del piano",
+                   "Trasmissione e presa visione del piano", "Lavoratore autonomo", "Giallo Luigi", "10/09/2025",
+                   "proposte di integrazione"):
+        assert atteso in testo, atteso
+
+
+def test_psc_redatto_dal_cse_art_90_comma_11(repo, tmp_path):
+    from sicurcantiere import controlli
+
+    _cantiere_completo(repo)
+    repo.aggiorna_cantiere(importo_lavori=80000, titolo_abilitativo="CILA")
+    b = repo.inserisci("imprese", ragione_sociale="Beta Impianti")
+    f = repo.importa_lavorazione(lav("MT.01"))
+    repo.aggiorna("fasi", f, impresa_id=b, data_inizio="2025-10-06", data_fine="2025-10-20")
+    messaggi = [x.messaggio for x in controlli.controlla(repo)]
+    assert not any("coordinatore per la progettazione" in m for m in messaggi)
+    testo = _testo_docx(genera_psc(repo, tmp_path / "psc.docx"))
+    assert "art. 90, comma 11" in testo
+
+
+def test_contenuti_planimetria(repo, tmp_path):
+    from PySide6.QtGui import QColor, QImage
+
+    from sicurcantiere import controlli, relazione
+
+    _cantiere_completo(repo)
+    immagine = QImage(100, 80, QImage.Format.Format_RGB32)
+    immagine.fill(QColor("#88AACC"))
+    immagine.save(str(tmp_path / "p.png"))
+    repo.inserisci("allegati_psc", tipo="Planimetria di cantiere", titolo="Layout", file=str(tmp_path / "p.png"))
+    assert any("planimetria di cantiere riporti" in x.messaggio for x in controlli.controlla(repo))
+    essenziali = [v for v, e in relazione.CONTENUTI_PLANIMETRIA if e]
+    repo.salva_testo(relazione.CHIAVE_CONTENUTI_PLANIMETRIA, ";".join(essenziali))
+    assert not any("planimetria di cantiere riporti" in x.messaggio for x in controlli.controlla(repo))
+    assert "La planimetria di cantiere riporta:" in _testo_docx(genera_psc(repo, tmp_path / "psc.docx"))

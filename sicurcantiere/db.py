@@ -489,6 +489,7 @@ MIGRAZIONI: list[str] = [
     # dell'opera, conformità al PSC, sistema adottato contro le cadute durante il montaggio, situazioni
     # particolari (partenze, vincoli di facciata, arrivo in quota...). POS: date di messa a disposizione al RLS
     # (art. 100, comma 4), di trasmissione all'affidataria e al CSE e dell'esito positivo delle verifiche (art. 101).
+    # PSC: data di consegna del piano a ogni impresa e lavoratore autonomo (art. 101), lavori pubblici o privati.
     """
     ALTER TABLE ponteggi ADD COLUMN redattore TEXT NOT NULL DEFAULT '';
     ALTER TABLE ponteggi ADD COLUMN redattore_qualifica TEXT NOT NULL DEFAULT '';
@@ -505,6 +506,8 @@ MIGRAZIONI: list[str] = [
     ALTER TABLE imprese ADD COLUMN pos_affidataria_data TEXT;
     ALTER TABLE imprese ADD COLUMN pos_cse_data TEXT;
     ALTER TABLE imprese ADD COLUMN pos_esito_data TEXT;
+    ALTER TABLE imprese ADD COLUMN psc_ricevuto_data TEXT;
+    ALTER TABLE cantiere ADD COLUMN lavori_pubblici INTEGER NOT NULL DEFAULT 0;
     """,
 ]
 

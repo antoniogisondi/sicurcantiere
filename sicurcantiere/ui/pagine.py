@@ -295,6 +295,11 @@ class PaginaDatiGenerali(Pagina):
                                      f"{analisi.COSTO_UOMO_GIORNO:.0f} € (valore tipico)")
         self.costo_ug.setToolTip("Costo medio di un uomo-giorno, usato per stimare la durata delle fasi. Se non "
                                  f"lo indichi si usa il valore tipico di {analisi.COSTO_UOMO_GIORNO:.0f} €.")
+        self.pubblici = QCheckBox("Lavori pubblici (appalto di un'amministrazione)")
+        self.pubblici.setToolTip("Nei lavori pubblici il PSC si trasmette mettendolo a disposizione di tutti i "
+                                 "concorrenti alla gara (art. 101, comma 1); nei lavori privati vale la deroga "
+                                 "dell'art. 90, comma 11.")
+        self.pubblici.toggled.connect(self._salva_pubblici)
         self.descrizione = QPlainTextEdit()
         self.descrizione.setPlaceholderText("Descrizione sintetica dell'opera")
         self._timer = QTimer(self, singleShot=True, interval=700)
@@ -311,10 +316,11 @@ class PaginaDatiGenerali(Pagina):
             griglia.addLayout(tema.campo_con_etichetta(etichette[campo], self.campi[campo]), r, c, 1, ampiezza)
         griglia.addLayout(tema.campo_con_etichetta("Importo presunto dei lavori", self.importo), 3, 0, 1, 2)
         griglia.addLayout(tema.campo_con_etichetta("Costo medio uomo-giorno", self.costo_ug), 3, 2, 1, 2)
-        griglia.addLayout(tema.campo_con_etichetta("Descrizione sintetica", self.descrizione), 4, 0, 1, 4)
+        griglia.addWidget(self.pubblici, 4, 0, 1, 4)
+        griglia.addLayout(tema.campo_con_etichetta("Descrizione sintetica", self.descrizione), 5, 0, 1, 4)
         for c, peso in enumerate((3, 1, 3, 1)):
             griglia.setColumnStretch(c, peso)
-        griglia.setRowStretch(4, 1)
+        griglia.setRowStretch(5, 1)
         self.riquadro_dati = tema.cornice("Dati dell'opera", griglia)
         self.corpo = QHBoxLayout()
         self.corpo.setSpacing(12)
@@ -340,6 +346,13 @@ class PaginaDatiGenerali(Pagina):
     def _salva_descrizione(self) -> None:
         self.repo.aggiorna_cantiere(descrizione=self.descrizione.toPlainText())
 
+    def _salva_pubblici(self, attivo: bool) -> None:
+        if not self._caricata:
+            return
+        self.repo.aggiorna_cantiere(lavori_pubblici=int(attivo))
+        if self.riepilogo is not None:
+            self.riepilogo.aggiorna(self.repo)
+
     def salva_in_sospeso(self) -> None:
         # I campi salvano all'uscita dal campo: alla chiusura della finestra
         # potrebbe non accadere, quindi salviamo tutto qui.
@@ -360,6 +373,9 @@ class PaginaDatiGenerali(Pagina):
             e.setText(c[campo])
         self.importo.setValue(c["importo_lavori"])
         self.costo_ug.setValue(c["costo_uomo_giorno"])
+        self.pubblici.blockSignals(True)
+        self.pubblici.setChecked(bool(c["lavori_pubblici"]))
+        self.pubblici.blockSignals(False)
         self.descrizione.blockSignals(True)
         self.descrizione.setPlainText(c["descrizione"])
         self.descrizione.blockSignals(False)
@@ -486,7 +502,8 @@ class PaginaImprese(Pagina):
         ("data_inizio", "Inizio dei lavori dell'impresa", "data"),
         ("data_fine", "Fine dei lavori dell'impresa", "data"),
         ("orario_lavoro", "Orario di lavoro in cantiere"),
-        (None, "Consegna e verifica del POS (artt. 100 e 101 del D.Lgs. 81/2008)"),
+        (None, "Consegna dei piani (artt. 100 e 101 del D.Lgs. 81/2008)"),
+        ("psc_ricevuto_data", "PSC consegnato all'impresa il", "data"),
         ("pos_rls_data", "Copia messa a disposizione del RLS il (almeno 10 giorni prima)", "data"),
         ("pos_affidataria_data", "Trasmesso all'impresa affidataria il", "data"),
         ("pos_cse_data", "Trasmesso al coordinatore per l'esecuzione il", "data"),
