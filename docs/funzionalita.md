@@ -4,7 +4,7 @@ Documento di riferimento del prodotto, da tenere aggiornato a ogni versione. Ser
 di vendita, per le presentazioni ai clienti e per non perdere le decisioni prese. Il dettaglio
 tecnico è nel [README](../README.md).
 
-*Ultimo aggiornamento: versione 0.25.0 (PiMUS con ponteggio a tratti liberi, catalogo degli elementi, unione di ponteggi, autorizzazione ministeriale, archivio dei sistemi, esportazione DXF, testi per tipologia e rischi del montaggio), ottobre 2026.*
+*Ultimo aggiornamento: versione 0.26.0 (PiMUS completato con il materiale di riferimento: redattore, contesto, conformità al PSC, sistemi anticaduta, situazioni particolari, verbale di consegna del ponteggio; POS con consegna e verifica degli artt. 100 e 101; PSC con i rischi del punto 2.2.3, contenuti della planimetria, aggiornamento e trasmissione del piano, lavori pubblici e art. 90, comma 11), ottobre 2026.*
 
 ## Lo scopo
 
@@ -611,6 +611,10 @@ versioni uscite entro la fine degli aggiornamenti inclusi, le successive si apro
   l'aggiornamento, non serve reinstallare.
 - PSC: nessuna scelta dell'impresa, perché il PSC riguarda tutte le imprese e i lavoratori autonomi del
   cantiere; il verbale di idoneità si fa dalla scheda dell'impresa.
+- PSC (ottobre 2026): niente piano di sicurezza sostitutivo (PSS), abrogato con il vecchio Codice degli
+  appalti; le sanzioni non vanno nel documento. Nei lavori privati senza permesso di costruire e sotto
+  100.000 € il programma applica da solo l'art. 90, comma 11 (PSC firmato dal CSE), leggendo titolo
+  abilitativo e importo.
 - PiMUS (ottobre 2026):
   - il ponteggio è un insieme di tratti liberi di un solo ponteggio, con tipologia, angolo e misure
     propri, e si possono unire due ponteggi: è la personalizzazione che manca negli altri programmi
@@ -627,7 +631,7 @@ versioni uscite entro la fine degli aggiornamenti inclusi, le successive si apro
 1. **PiMUS, prossimi passi**:
    - aggiungere al catalogo gli elementi che il titolare segnala man mano;
    - registro delle verifiche periodiche con data, firma e foto (dopo temporali o lunghe interruzioni,
-     art. 137) e verbali di consegna del ponteggio, di trasformazione e di smontaggio;
+     art. 137) e verbali di trasformazione e di smontaggio (il verbale di consegna c'è dalla 0.26.0);
    - duplicare un ponteggio o salvarlo come modello per i cantieri successivi;
    - composizione salvata (bozza, emissione, consegna) anche per il PiMUS, come per POS e PSC;
    - da verificare sul testo ufficiale dell'Accordo Stato-Regioni del 17/04/2025 la durata del corso per
