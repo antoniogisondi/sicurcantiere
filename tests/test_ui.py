@@ -527,6 +527,42 @@ def test_programma_pimus(app, tmp_path):
     addetti = repo.elenco("addetti_ponteggio", ponteggio_id=pid)
     assert [(a["nome"], a["ruolo"]) for a in addetti] == [("Luca Bianchi", P.PREPOSTO)]
     assert "Luca Bianchi: indicare la data del corso" in pp.avvisi.text()
+
+    # registro dei controlli, verbali, duplicazione
+    from datetime import date
+
+    from sicurcantiere.ui import anteprima
+
+    pp.registro.aggiungi()
+    controllo = repo.elenco("registro_ponteggio", ponteggio_id=pid)[0]
+    assert controllo["data"] == date.today().isoformat() and controllo["eseguita_da"] == "Luca Bianchi"
+    repo.aggiorna("registro_ponteggio", controllo["id"], esito=pimus.NON_IDONEO, interventi="Rinforzo")
+    pp.registro.modificata.emit()
+    assert "esito negativo" in pp.avvisi.text()
+    pp.verbali.aggiungi()
+    verbale = repo.elenco("verbali_ponteggio", ponteggio_id=pid)[0]
+    pp.verbali.seleziona(verbale["id"])
+    creati = []
+    originale_salva, originale_creato = QtWidgets.QFileDialog.getSaveFileName, anteprima.documento_creato
+    QtWidgets.QFileDialog.getSaveFileName = lambda *a, **k: (str(tmp_path / "doc.docx"), "")
+    anteprima.documento_creato = lambda _w, file, *a, **k: creati.append(file)
+    try:
+        pp._genera_verbale()
+        pp._stampa_registro()
+    finally:
+        QtWidgets.QFileDialog.getSaveFileName, anteprima.documento_creato = originale_salva, originale_creato
+    assert len(creati) == 2
+    pp.schede.setCurrentWidget(pp.composizioni.parentWidget())
+    assert pp.composizioni.documento() == f"PIMUS:{pid}"
+    from sicurcantiere import composizioni as comp
+
+    comp.componi(repo, f"PIMUS:{pid}", "Prima emissione", 0)
+    pp.composizioni.ricarica()
+    assert pp.composizioni.tabella.rowCount() == 1
+    pp._duplica()
+    assert len(repo.elenco("ponteggi")) == 2 and pp.id_ != pid
+    assert pp.composizioni.tabella.rowCount() == 0  # il documento composto resta al ponteggio di origine
+    assert not repo.elenco("registro_ponteggio", ponteggio_id=pp.id_)
     f.close()
 
 

@@ -267,8 +267,24 @@ programma apre anche i file degli altri: per esempio il POS può partire dal fil
   stoccaggio nella lettera a) e foto o schemi delle fasi nel punto 8, interdizione delle parti non
   utilizzabili, regole di accesso, manutenzione e cessione a terzi, pagina di presa visione firmata
   da preposto e lavoratori; verifiche intitolate anche alla Circolare MLPS 46/2000.
-- **Verbale di consegna del ponteggio** all'impresa che lo utilizza (cessione a terzi): tratti,
-  carico ammesso, controlli alla consegna, impegni di chi riceve, firme delle due imprese.
+- **Registro e verbali** (scheda propria):
+  - **registro dei controlli del ponteggio in uso** (art. 137, comma 2): data, motivo (periodico,
+    dopo violente perturbazioni atmosferiche, dopo prolungata interruzione, dopo una trasformazione,
+    su segnalazione), preposto, i cinque controlli (montanti, giunti, ancoraggi, controventi,
+    impalcati e parapetti), esito, interventi e foto. Avviso se l'ultimo controllo è negativo (uso
+    sospeso finché un nuovo controllo non lo dichiara idoneo) o se mancano gli interventi; il
+    registro stampato ha righe in bianco da compilare in cantiere e le foto in coda;
+  - **verbali** di **fine montaggio e messa in uso**, **consegna** a un'altra impresa (cessione a
+    terzi, con gli impegni di chi riceve), **trasformazione** (PiMUS e disegno aggiornati, progetto
+    se fuori schema) e **smontaggio** (dall'alto, ancoraggi tolti man mano, area restituita), ognuno
+    con i suoi controlli e le firme; si generano dalla riga con data, preposto e descrizione.
+- **Documento PiMUS composto e salvato** (scheda «Documento PiMUS»), come POS e PSC: bozza con
+  filigrana e dati da completare, capitoli personalizzabili, emissione, consegna, confronto tra
+  revisioni e tabella delle revisioni nel documento, separato per ogni ponteggio.
+- **Duplica** un ponteggio (per un'altra facciata simile: tutto tranne registro e verbali) e
+  **modelli di ponteggio** nell'archivio: «Salva come modello» e «Nuovo da modello...» portano in un
+  altro cantiere tratti, elementi, dati del sistema, testi, rischi, verifiche e libretto, senza
+  squadra, impresa e dati del cantiere. Unendo due ponteggi passano anche rischi, registro e verbali.
 - Nel catalogo anche **castello di carico**, **partenza su bocca di lupo** e **basetta snodata**;
   nel DXF delle tavole il **cartiglio** del disegno esecutivo.
 - **Autorizzazione ministeriale** (art. 131): fabbricante, nome del sistema, numero, data, ultimo
@@ -343,7 +359,7 @@ programma apre anche i file degli altri: per esempio il POS può partire dal fil
   - allegati riportati solo se pertinenti.
 - Tabella delle revisioni, con la data del documento presa dall'ultima revisione.
 
-### Documenti composti: bozza, emissione, consegna (POS e PSC)
+### Documenti composti: bozza, emissione, consegna (POS, PSC e PiMUS)
 - **Il documento resta salvato nel cantiere**, con lo storico delle revisioni. Per ognuna si
   vedono stato, data, descrizione e dati mancanti.
 - **Stati**:
@@ -630,10 +646,6 @@ versioni uscite entro la fine degli aggiornamenti inclusi, le successive si apro
 
 1. **PiMUS, prossimi passi**:
    - aggiungere al catalogo gli elementi che il titolare segnala man mano;
-   - registro delle verifiche periodiche con data, firma e foto (dopo temporali o lunghe interruzioni,
-     art. 137) e verbali di trasformazione e di smontaggio (il verbale di consegna c'è dalla 0.26.0);
-   - duplicare un ponteggio o salvarlo come modello per i cantieri successivi;
-   - composizione salvata (bozza, emissione, consegna) anche per il PiMUS, come per POS e PSC;
    - da verificare sul testo ufficiale dell'Accordo Stato-Regioni del 17/04/2025 la durata del corso per
      i ponteggisti (28 ore secondo la maggior parte delle fonti, una ne indica 32) e sul testo vigente gli
      articoli 131-138.

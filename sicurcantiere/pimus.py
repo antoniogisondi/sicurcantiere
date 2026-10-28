@@ -260,7 +260,77 @@ def avvisi_autorizzazione(ponteggio: dict[str, Any], oggi=None) -> list[str]:
 
 
 def avvisi_ponteggio(repo, ponteggio: dict[str, Any]) -> list[str]:
-    return avvisi(ponteggio, repo.elenco("addetti_ponteggio", ponteggio_id=ponteggio["id"]))
+    return (avvisi(ponteggio, repo.elenco("addetti_ponteggio", ponteggio_id=ponteggio["id"]))
+            + avvisi_registro(repo.elenco("registro_ponteggio", ponteggio_id=ponteggio["id"])))
+
+
+# --- registro dei controlli del ponteggio in uso (art. 137, comma 2) ---
+
+MOTIVI_CONTROLLO = [
+    "Controllo periodico",
+    "Dopo violente perturbazioni atmosferiche",
+    "Dopo prolungata interruzione del lavoro",
+    "Dopo una trasformazione",
+    "Su segnalazione",
+]
+# (campo, voce): i controlli che il preposto esegue secondo l'art. 137, comma 2, più impalcati e parapetti
+CONTROLLI_USO = [
+    ("montanti", "Verticalità dei montanti"),
+    ("giunti", "Giusto serraggio dei giunti e dei collegamenti"),
+    ("ancoraggi", "Efficienza degli ancoraggi"),
+    ("controventi", "Efficienza dei controventi e delle diagonali"),
+    ("impalcati", "Impalcati, parapetti, fermapiede e accessi integri"),
+]
+IDONEO, IDONEO_INTERVENTI, NON_IDONEO = ("Idoneo all'uso", "Idoneo dopo gli interventi",
+                                         "Non idoneo: uso sospeso")
+ESITI_CONTROLLO = ["", IDONEO, IDONEO_INTERVENTI, NON_IDONEO]
+
+
+def avvisi_registro(registro: list[dict[str, Any]]) -> list[str]:
+    """Ultimo controllo con esito negativo (ponteggio da non usare) e controlli incompleti."""
+    messaggi = []
+    eseguiti = [r for r in registro if r.get("data")]
+    if eseguiti:
+        ultimo = max(eseguiti, key=lambda r: (r["data"], r["id"]))
+        if ultimo["esito"] == NON_IDONEO:
+            messaggi.append(f"Registro dei controlli: l'ultimo controllo ({ultimo['data'][8:10]}/{ultimo['data'][5:7]}/"
+                            f"{ultimo['data'][:4]}) ha dato esito negativo. Il ponteggio non si usa finché un nuovo "
+                            "controllo non lo dichiara idoneo (art. 137, comma 2).")
+    for r in registro:
+        if r.get("esito") in (IDONEO_INTERVENTI, NON_IDONEO) and not (r.get("interventi") or "").strip():
+            messaggi.append("Registro dei controlli: indicare gli interventi (sostituzione o rinforzo degli elementi "
+                            "inefficienti) per i controlli con esito non pienamente positivo.")
+            break
+    if any(r.get("esito") and not r.get("data") for r in registro):
+        messaggi.append("Registro dei controlli: indicare la data dei controlli eseguiti.")
+    return messaggi
+
+
+# --- verbali del ponteggio ---
+
+FINE_MONTAGGIO, CONSEGNA, TRASFORMAZIONE, SMONTAGGIO = ("Fine montaggio", "Consegna a un'altra impresa",
+                                                        "Trasformazione", "Smontaggio")
+TIPI_VERBALE = [FINE_MONTAGGIO, CONSEGNA, TRASFORMAZIONE, SMONTAGGIO]
+
+
+def duplica_ponteggio(repo, ponteggio_id: int, nome: str | None = None) -> int:
+    """Copia il ponteggio con tratti, elementi, squadra, testi, rischi, verifiche (senza esiti) e allegati.
+    Registro dei controlli e verbali restano al ponteggio di origine: riguardano quello montato."""
+    p = repo.leggi("ponteggi", ponteggio_id)
+    if p is None:
+        raise ValueError("Ponteggio inesistente")
+    dati = {k: v for k, v in p.items() if k != "id"}
+    dati["nome"] = nome if nome is not None else f"{p['nome']} (copia)".strip()
+    nuovo = repo.inserisci("ponteggi", **dati)
+    for tabella, azzera in (("addetti_ponteggio", {}), ("rischi_ponteggio", {}), ("allegati_ponteggio", {}),
+                            ("verifiche_ponteggio", {"esito": "", "note": ""})):
+        for r in repo.elenco(tabella, ponteggio_id=ponteggio_id):
+            repo.inserisci(tabella, **{**{k: v for k, v in r.items() if k not in ("id", "ponteggio_id")},
+                                       **azzera, "ponteggio_id": nuovo})
+    for chiave, _, _ in SEZIONI:
+        if testo := repo.testo(chiave_testo(ponteggio_id, chiave)):
+            repo.salva_testo(chiave_testo(nuovo, chiave), testo)
+    return nuovo
 
 
 TIPI_ALLEGATO = [

@@ -1,6 +1,7 @@
 """Documenti composti e salvati nel cantiere.
 
-Ogni composizione è una revisione del documento (POS di un'impresa, PSC) con il suo file Word:
+Ogni composizione è una revisione del documento (POS di un'impresa, PSC, PiMUS di un ponteggio) con il suo
+file Word:
 - «bozza»: si ricompone quante volte serve (filigrana BOZZA, dati mancanti evidenziati);
 - «emessa»: versione definitiva bloccata; per cambiarla si compone la revisione successiva;
 - «consegnata»: emessa e consegnata (a chi e quando);
@@ -41,6 +42,11 @@ def generatore(documento: str) -> Callable[[Repository, Path], Path]:
 
         impresa = int(documento.split(":", 1)[1])
         return lambda repo, percorso: genera_pos(repo, impresa, percorso)
+    if documento.startswith("PIMUS:"):
+        from sicurcantiere.documenti.pimus import genera_pimus
+
+        ponteggio = int(documento.split(":", 1)[1])
+        return lambda repo, percorso: genera_pimus(repo, ponteggio, percorso)
     raise ValueError(f"Documento non componibile: {documento}")
 
 
@@ -48,6 +54,9 @@ def nome_documento(repo: Repository, documento: str) -> str:
     if documento.startswith("POS:"):
         impresa = repo.leggi("imprese", int(documento.split(":", 1)[1]))
         return f"POS - {impresa['ragione_sociale'] if impresa else 'impresa'}"
+    if documento.startswith("PIMUS:"):
+        ponteggio = repo.leggi("ponteggi", int(documento.split(":", 1)[1]))
+        return f"PiMUS - {ponteggio['nome'] if ponteggio else 'ponteggio'}"
     return documento
 
 

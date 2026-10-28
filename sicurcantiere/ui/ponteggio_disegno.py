@@ -1,4 +1,4 @@
-"""Schede «Disegno» e «Calcoli e quantità» della pagina dei ponteggi.
+"""Schede «Disegno» e «Calcoli» della pagina dei ponteggi.
 
 A sinistra il ponteggio come insieme di tratti (ognuno con tipologia, posizione, angolo, misure propri), i
 valori comuni, il piano di appoggio e gli elementi inseriti; a destra lo schema che si aggiorna mentre si

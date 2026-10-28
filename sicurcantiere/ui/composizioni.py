@@ -386,7 +386,8 @@ class PannelloComposizioni(QWidget):
     def componi(self) -> bool:
         documento = self.documento()
         if not documento:
-            QMessageBox.information(self, "Componi", f"Inserisci prima l'impresa per comporre il {self.nome}.")
+            QMessageBox.information(self, "Componi", "Seleziona prima il ponteggio." if self.nome == "PiMUS" else
+                                    f"Inserisci prima l'impresa per comporre il {self.nome}.")
             return False
         attuale = comp.bozza(self.repo, documento)
         if attuale and (attuale["modificata_word"] or self._modificata_in_word(attuale)):

@@ -22,6 +22,7 @@ PERSONA = "persona"
 IMPRESA = "impresa"
 LAVORAZIONE = "lavorazione"
 SISTEMA = "sistema_ponteggio"
+MODELLO_PONTEGGIO = "modello_ponteggio"
 
 # Dati del ponteggio e della sua geometria che descrivono il sistema (non il singolo cantiere).
 CAMPI_SISTEMA = ("fabbricante", "sistema", "modello", "tipo", "autorizzazione", "aut_data", "aut_rinnovo",
@@ -29,6 +30,10 @@ CAMPI_SISTEMA = ("fabbricante", "sistema", "modello", "tipo", "autorizzazione", 
 GEOMETRIA_SISTEMA = ("campata", "larghezza", "interpiano", "peso_proprio", "tipo_ancoraggio", "ancoraggi_campate",
                      "ancoraggi_livelli", "ancoraggi_rombo")
 ALLEGATI_SISTEMA = ("Libretto del fabbricante", "Autorizzazione ministeriale", "Schema degli ancoraggi")
+
+# Dati del ponteggio propri del cantiere, che un modello non porta con sé.
+CAMPI_SOLO_CANTIERE = {"id", "impresa_id", "impresa_utilizzatrice", "opera_servita", "linee_tensione",
+                       "linee_distanza", "preposto", "squadra"}
 
 # Campi che non hanno senso fuori dal cantiere di origine.
 _ESCLUSI = {"id", "impresa_id", "affidataria_id", "fase_id"}
@@ -184,6 +189,44 @@ class ArchivioAnagrafiche:
             if a.get("file") and a["file"] not in presenti:
                 repo.inserisci("allegati_ponteggio", ponteggio_id=ponteggio_id, tipo=a.get("tipo", ""),
                                titolo=a.get("titolo", ""), file=a["file"])
+
+    # --- modelli di ponteggio (ponteggio completo da riusare in altri cantieri) ---
+
+    def salva_modello(self, repo: Repository, ponteggio_id: int, nome: str = "") -> int:
+        """Salva il ponteggio come modello: dati, geometria (tratti ed elementi), testi del PiMUS, rischi del
+        montaggio, elenco delle verifiche e allegati del sistema. Squadra, impresa e dati del cantiere no."""
+        from sicurcantiere import pimus
+
+        p = repo.leggi("ponteggi", ponteggio_id)
+        if p is None:
+            raise ValueError("Ponteggio non trovato.")
+        dati = {k: v for k, v in p.items() if k not in CAMPI_SOLO_CANTIERE}
+        dati["testi"] = {k: t for k, _, _ in pimus.SEZIONI if (t := repo.testo(pimus.chiave_testo(ponteggio_id, k)))}
+        dati["rischi"] = [{k: r[k] for k in ("descrizione", "probabilita", "danno", "misure", "dpi")}
+                          for r in repo.elenco("rischi_ponteggio", ponteggio_id=ponteggio_id)]
+        dati["verifiche"] = [{k: v[k] for k in ("momento", "voce")}
+                             for v in repo.elenco("verifiche_ponteggio", ponteggio_id=ponteggio_id)]
+        dati["allegati"] = [{k: a[k] for k in ("tipo", "titolo", "file")}
+                            for a in repo.elenco("allegati_ponteggio", ponteggio_id=ponteggio_id)
+                            if a["tipo"] in ALLEGATI_SISTEMA]
+        return self.salva(MODELLO_PONTEGGIO, nome or p["nome"] or "Ponteggio", dati, p.get("tipo") or "")
+
+    @staticmethod
+    def inserisci_modello(repo: Repository, voce: dict[str, Any]) -> int:
+        """Crea nel cantiere un nuovo ponteggio dal modello."""
+        from sicurcantiere import pimus
+
+        dati = voce["dati"]
+        colonne = repo._colonne["ponteggi"] - CAMPI_SOLO_CANTIERE
+        nuovo = repo.inserisci("ponteggi", **{k: v for k, v in dati.items() if k in colonne})
+        for chiave, testo in (dati.get("testi") or {}).items():
+            repo.salva_testo(pimus.chiave_testo(nuovo, chiave), testo)
+        for tabella, chiave in (("rischi_ponteggio", "rischi"), ("verifiche_ponteggio", "verifiche"),
+                                ("allegati_ponteggio", "allegati")):
+            campi = repo._colonne[tabella] - {"id", "ponteggio_id"}
+            for r in dati.get(chiave) or []:
+                repo.inserisci(tabella, ponteggio_id=nuovo, **{k: v for k, v in r.items() if k in campi})
+        return nuovo
 
     # --- lavorazioni personalizzate ---
 

@@ -62,8 +62,11 @@ class PaginaPonteggi(Pagina):
         self.tabella.imposta_titolo("Ponteggi")
         genera = primario(QPushButton("Genera il PiMUS in Word..."))
         genera.clicked.connect(self._genera)
+        self.tabella.aggiungi_pulsante("Duplica", self._duplica)
+        self.tabella.aggiungi_pulsante("Nuovo da modello...", self._da_modello)
+        self.tabella.aggiungi_pulsante("Salva come modello", lambda: archivio_anagrafiche.salva_modello(
+            self, self.repo, self.id_))
         self.tabella.aggiungi_pulsante("Unisci un altro ponteggio...", self._unisci)
-        self.tabella.aggiungi_pulsante("Verbale di consegna...", self._verbale_consegna)
         self.tabella.pulsanti.insertWidget(2, genera)
         self.tabella.selezione_cambiata.connect(self._seleziona)
         self.tabella.modificata.connect(self._elenco_modificato)
@@ -197,6 +200,63 @@ class PaginaPonteggi(Pagina):
         la.addWidget(self.allegati, 1)
         la.addWidget(nota_allegati)
 
+        # registro dei controlli in uso (art. 137, comma 2) e verbali del ponteggio
+        self.registro = TabellaCrud(repo, "registro_ponteggio", [
+            Colonna("data", "Data", "data", larghezza=100),
+            Colonna("motivo", "Motivo", "scelta", larghezza=200, scelte=lambda: [(m, m) for m in pimus.MOTIVI_CONTROLLO]),
+            Colonna("eseguita_da", "Preposto", "scelta", larghezza=160, scelta_libera=True, scelte=self._preposti),
+            *[Colonna(campo, f"{n}", "spunta", larghezza=34, suggerimento=voce)
+              for n, (campo, voce) in enumerate(pimus.CONTROLLI_USO, 1)],
+            Colonna("esito", "Esito", "scelta", larghezza=170,
+                    scelte=lambda: [(e, e or "Da indicare") for e in pimus.ESITI_CONTROLLO]),
+            Colonna("interventi", "Interventi eseguiti", "testo_lungo"),
+            Colonna("foto", "Foto", larghezza=200),
+        ], valori_nuovo=self._nuovo_controllo)
+        self.registro.imposta_titolo("Registro dei controlli del ponteggio in uso (art. 137, comma 2)")
+        self.registro.aggiungi_pulsante("Allega foto...", self._allega_foto)
+        self.registro.aggiungi_pulsante("Stampa il registro...", self._stampa_registro)
+        self.registro.modificata.connect(self._aggiorna_avvisi)
+        legenda = QLabel("Controlli: " + " · ".join(f"{n} {voce.lower()}" for n, (_, voce)
+                                                     in enumerate(pimus.CONTROLLI_USO, 1))
+                         + ". Il registro stampato ha anche righe in bianco da compilare in cantiere.")
+        legenda.setObjectName("hint")
+        legenda.setWordWrap(True)
+        self.verbali = TabellaCrud(repo, "verbali_ponteggio", [
+            Colonna("tipo", "Verbale", "scelta", larghezza=210, scelte=lambda: [(t, t) for t in pimus.TIPI_VERBALE]),
+            Colonna("data", "Data", "data", larghezza=100),
+            Colonna("preposto", "Preposto", "scelta", larghezza=160, scelta_libera=True, scelte=self._preposti),
+            Colonna("ricevente", "Impresa che riceve (consegna)", larghezza=200),
+            Colonna("descrizione", "Descrizione (cosa si trasforma, quali tratti...)", "testo_lungo"),
+            Colonna("note", "Note", "testo_lungo"),
+        ], valori_nuovo=lambda: {"tipo": pimus.FINE_MONTAGGIO})
+        self.verbali.imposta_titolo("Verbali del ponteggio")
+        self.verbali.aggiungi_pulsante("Genera il verbale...", self._genera_verbale)
+        scheda_registro = QSplitter(Qt.Orientation.Vertical)
+        alto = QWidget()
+        lal = QVBoxLayout(alto)
+        lal.setContentsMargins(0, 6, 0, 0)
+        lal.addWidget(self.registro, 1)
+        lal.addWidget(legenda)
+        scheda_registro.addWidget(alto)
+        scheda_registro.addWidget(self.verbali)
+
+        # PiMUS composto e salvato nel cantiere: bozza, emissione, consegna, come POS e PSC
+        from sicurcantiere.documenti.pimus import documento_pimus
+        from sicurcantiere.ui.composizioni import PannelloComposizioni
+
+        self.composizioni = PannelloComposizioni(
+            repo, lambda: documento_pimus(self.id_) if self.id_ is not None else None, "PiMUS", self)
+        scheda_documento = QSplitter(Qt.Orientation.Vertical)
+        scheda_documento.addWidget(self.composizioni)
+        mancanti = QWidget()
+        lm = QVBoxLayout(mancanti)
+        lm.setContentsMargins(0, 6, 0, 0)
+        titolo_mancanti = QLabel("Dati da completare nella bozza (doppio clic per andare al dato)")
+        titolo_mancanti.setObjectName("hint")
+        lm.addWidget(titolo_mancanti)
+        lm.addWidget(self.composizioni.mancanti, 1)
+        scheda_documento.addWidget(mancanti)
+
         self.schede = QTabWidget()
         scorrimento_dati = QScrollArea()
         scorrimento_dati.setWidgetResizable(True)
@@ -218,14 +278,16 @@ class PaginaPonteggi(Pagina):
         lda.addWidget(riga_archivio)
         lda.addWidget(self.dati)
         scorrimento_dati.setWidget(dati_e_archivio)
-        self.schede.addTab(scorrimento_dati, "Dati del ponteggio")
+        self.schede.addTab(scorrimento_dati, "Dati")
         self.schede.addTab(self.geometria, "Disegno")
-        self.schede.addTab(self.calcoli, "Calcoli e quantità")
+        self.schede.addTab(self.calcoli, "Calcoli")
         self.schede.addTab(scheda_squadra, "Squadra")
-        self.schede.addTab(scorrimento, "Testi del PiMUS")
+        self.schede.addTab(scorrimento, "Testi")
         self.schede.addTab(self.rischi, "Rischi del montaggio")
-        self.schede.addTab(self.verifiche, "Verifiche (Allegato XIX)")
+        self.schede.addTab(self.verifiche, "Verifiche XIX")
         self.schede.addTab(scheda_allegati, "Allegati")
+        self.schede.addTab(scheda_registro, "Registro e verbali")
+        self.schede.addTab(scheda_documento, "Documento PiMUS")
         self.schede.currentChanged.connect(lambda _i: self._scheda_cambiata())
         self.schede.setEnabled(False)
 
@@ -262,6 +324,9 @@ class PaginaPonteggi(Pagina):
         self.squadra.imposta_filtro(ponteggio_id=filtro)
         self.allegati.imposta_filtro(ponteggio_id=filtro)
         self.rischi.imposta_filtro(ponteggio_id=filtro)
+        self.registro.imposta_filtro(ponteggio_id=filtro)
+        self.verbali.imposta_filtro(ponteggio_id=filtro)
+        self.composizioni.ricarica()
         self.geometria.carica(id_)
         self.calcoli.carica(id_)
         self._aggiorna_avvisi()
@@ -300,27 +365,34 @@ class PaginaPonteggi(Pagina):
         self._aggiorna_avvisi()
 
     def _scheda_cambiata(self) -> None:
-        if self.schede.currentWidget() is self.calcoli:
+        if self.schede.currentWidget() is self.composizioni.parentWidget():
+            self.salva_in_sospeso()
+            self.composizioni.ricarica()
+        elif self.schede.currentWidget() is self.calcoli:
             self.calcoli.carica(self.id_)
         elif self.schede.currentWidget() is self.geometria:
             self.geometria.carica(self.id_)
 
-    def _verbale_consegna(self) -> None:
-        """Verbale di consegna del ponteggio all'impresa che lo utilizza (cessione a terzi, punto 9)."""
-        if self.id_ is None:
-            QMessageBox.information(self, "Verbale di consegna", "Seleziona prima un ponteggio.")
-            return
-        from sicurcantiere.documenti.pimus import genera_consegna
+    def _preposti(self):
+        nomi = [a["nome"] for a in self.repo.elenco("addetti_ponteggio", ponteggio_id=self.id_ or -1)
+                if a["ruolo"] == P.PREPOSTO and a["nome"].strip()]
+        return [("", "")] + [(n, n) for n in nomi]
 
+    def _nuovo_controllo(self) -> dict:
+        from datetime import date
+
+        preposti = [n for n, _ in self._preposti() if n]
+        return {"data": date.today().isoformat(), "motivo": pimus.MOTIVI_CONTROLLO[0],
+                "eseguita_da": preposti[0] if preposti else ""}
+
+    def _salva_documento(self, titolo: str, nome_file: str, genera) -> None:
         self.salva_in_sospeso()
-        p = self.repo.leggi("ponteggi", self.id_)
-        predefinito = self.repo.progetto.percorso.with_name(f"Consegna ponteggio - {p['nome'] or 'ponteggio'}.docx")
-        percorso, _ = QFileDialog.getSaveFileName(self, "Verbale di consegna", str(predefinito),
-                                                  "Documento Word (*.docx)")
+        predefinito = self.repo.progetto.percorso.with_name(nome_file)
+        percorso, _ = QFileDialog.getSaveFileName(self, titolo, str(predefinito), "Documento Word (*.docx)")
         if not percorso:
             return
         try:
-            file = genera_consegna(self.repo, self.id_, percorso)
+            file = genera(percorso)
         except PermissionError:
             QMessageBox.warning(self, "Salvataggio non riuscito", "Impossibile salvare il file: verifica che non sia "
                                                                   "aperto in Word.")
@@ -328,11 +400,62 @@ class PaginaPonteggi(Pagina):
         from sicurcantiere.ui.anteprima import documento_creato
         from sicurcantiere.ui.pagine import AVVISO_RESPONSABILITA
 
-        documento_creato(self, file, "Verbale di consegna generato", AVVISO_RESPONSABILITA)
+        documento_creato(self, file, f"{titolo} generato", AVVISO_RESPONSABILITA)
+
+    def _genera_verbale(self) -> None:
+        """Verbale della riga selezionata: fine montaggio, consegna, trasformazione o smontaggio."""
+        from sicurcantiere.documenti.pimus import genera_verbale
+
+        id_verbale = self.verbali.id_selezionato()
+        if self.id_ is None or id_verbale is None:
+            QMessageBox.information(self, "Verbali", "Aggiungi o seleziona prima il verbale da generare.")
+            return
+        v = self.repo.leggi("verbali_ponteggio", id_verbale)
+        p = self.repo.leggi("ponteggi", self.id_)
+        self._salva_documento("Verbale", f"{v['tipo']} - {p['nome'] or 'ponteggio'}.docx".replace("'", ""),
+                              lambda percorso: genera_verbale(self.repo, self.id_, percorso, id_verbale))
+
+    def _stampa_registro(self) -> None:
+        from sicurcantiere.documenti.pimus import genera_registro
+
+        if self.id_ is None:
+            return
+        p = self.repo.leggi("ponteggi", self.id_)
+        self._salva_documento("Registro dei controlli", f"Registro controlli - {p['nome'] or 'ponteggio'}.docx",
+                              lambda percorso: genera_registro(self.repo, self.id_, percorso))
+
+    def _allega_foto(self) -> None:
+        id_controllo = self.registro.id_selezionato()
+        if id_controllo is None:
+            QMessageBox.information(self, "Registro", "Seleziona prima il controllo a cui allegare la foto.")
+            return
+        percorso, _ = QFileDialog.getOpenFileName(self, "Foto del controllo", "",
+                                                  "Immagini e PDF (*.png *.jpg *.jpeg *.bmp *.pdf)")
+        if percorso:
+            self.repo.aggiorna("registro_ponteggio", id_controllo, foto=percorso)
+            self.registro.ricarica()
+            self.registro.seleziona(id_controllo)
+
+    def _duplica(self) -> None:
+        """Copia del ponteggio selezionato, per esempio per un'altra facciata simile."""
+        if self.id_ is None:
+            return
+        self.salva_in_sospeso()
+        self._apri(pimus.duplica_ponteggio(self.repo, self.id_))
+
+    def _da_modello(self) -> None:
+        if (nuovo := archivio_anagrafiche.prendi_modello(self, self.repo)) is not None:
+            self._apri(nuovo)
+
+    def _apri(self, id_: int) -> None:
+        self.tabella.ricarica()
+        self.tabella.seleziona(id_)
+        self._seleziona(id_)
 
     def _unisci(self) -> None:
-        """Porta in questo ponteggio i tratti, gli elementi, la squadra, le verifiche e gli allegati di un altro
-        ponteggio del cantiere, che poi viene eliminato: due parti della stessa opera diventano un solo ponteggio."""
+        """Porta in questo ponteggio i tratti, gli elementi, la squadra, le verifiche, i rischi, gli allegati, il
+        registro e i verbali di un altro ponteggio del cantiere, che poi viene eliminato: due parti della stessa
+        opera diventano un solo ponteggio."""
         if self.id_ is None:
             return
         altri = [p for p in self.repo.elenco("ponteggi") if p["id"] != self.id_]
@@ -364,12 +487,13 @@ class PaginaPonteggi(Pagina):
         g = P.unisci(g, g_altro, P.tratti(questo, g))
         self.repo.aggiorna("ponteggi", self.id_, geometria=P.testo_geometria(g), lunghezza=P.sviluppo(g),
                            altezza=max(questo["altezza"], altro["altezza"]))
-        for tabella in ("addetti_ponteggio", "verifiche_ponteggio", "allegati_ponteggio"):
-            presenti = {(r.get("nome") or r.get("voce") or r.get("file")) for r in
-                        self.repo.elenco(tabella, ponteggio_id=self.id_)}
+        for tabella, chiave in (("addetti_ponteggio", "nome"), ("verifiche_ponteggio", "voce"),
+                                ("allegati_ponteggio", "file"), ("rischi_ponteggio", "descrizione"),
+                                ("registro_ponteggio", None), ("verbali_ponteggio", None)):
+            presenti = {r[chiave] for r in self.repo.elenco(tabella, ponteggio_id=self.id_)} if chiave else set()
             for r in self.repo.elenco(tabella, ponteggio_id=altro_id):
-                if (r.get("nome") or r.get("voce") or r.get("file")) in presenti:
-                    continue  # stesso addetto, stessa verifica o stesso file: non si duplica
+                if chiave and r[chiave] in presenti:
+                    continue  # stesso addetto, verifica, file o rischio: non si duplica
                 self.repo.aggiorna(tabella, r["id"], ponteggio_id=self.id_)
         self.repo.elimina("ponteggi", altro_id)
         id_ = self.id_

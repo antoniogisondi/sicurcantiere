@@ -12,11 +12,13 @@ TABELLE_ELENCO = (
     "costi", "revisioni", "interventi", "elaborati",
     "valutazioni", "ponteggi", "verifiche_ponteggio", "sostanze", "figure",
     "mansioni_lavoratori", "sostanze_fasi", "valutazioni_fasi", "allegati_psc",
-    "addetti_ponteggio", "allegati_ponteggio", "rischi_ponteggio",
+    "addetti_ponteggio", "allegati_ponteggio", "rischi_ponteggio", "registro_ponteggio", "verbali_ponteggio",
 )
 ORDINAMENTO = {
     "fasi": "data_inizio IS NULL, data_inizio, id",
     "revisioni": "documento, numero, id",
+    "registro_ponteggio": "data IS NULL, data, id",
+    "verbali_ponteggio": "data IS NULL, data, id",
 }
 
 

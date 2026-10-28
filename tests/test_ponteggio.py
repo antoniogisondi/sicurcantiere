@@ -188,7 +188,7 @@ def test_formazione_della_squadra():
 def test_migrazione_porta_preposto_e_squadra(tmp_path):
     percorso = tmp_path / "vecchio.spm"
     conn = sqlite3.connect(percorso)
-    for n, sql in enumerate(MIGRAZIONI[:-3], 1):  # file della versione 0.23
+    for n, sql in enumerate(MIGRAZIONI[:-4], 1):  # file della versione 0.23
         conn.executescript(f"BEGIN;{sql};PRAGMA user_version = {n};COMMIT;")
     conn.execute("INSERT INTO ponteggi (nome, preposto, squadra) VALUES ('Nord', 'Luca Bianchi', 'Mario, Gino')")
     conn.commit()
@@ -346,3 +346,98 @@ def test_contenuti_dal_materiale_pimus(repo, tmp_path):
     testo = "\n".join([x.text for x in consegna.paragraphs]
                       + [c.text for t in consegna.tables for r in t.rows for c in r.cells])
     assert "Verbale di consegna del ponteggio" in testo and "Restauri Sud srl" in testo and "T1 Nord" in testo
+
+
+def _testo(file):
+    doc = Document(file)
+    return "\n".join([x.text for x in doc.paragraphs] + [c.text for t in doc.tables for r in t.rows for c in r.cells])
+
+
+def _ponteggio_completo(repo):
+    repo.aggiorna_cantiere(nome="Scuola", indirizzo="Via Roma 1", comune="Bari")
+    impresa = repo.inserisci("imprese", ragione_sociale="Edil Ponteggi", datore_lavoro="Anna Verdi")
+    p = repo.inserisci("ponteggi", nome="Facciata nord", impresa_id=impresa, altezza=10, fabbricante="Alfa",
+                       opera_servita="Rifacimento facciata", geometria=json.dumps({"tratti": [{"nome": "Nord",
+                                                                                               "lunghezza": 9}]}))
+    repo.inserisci("addetti_ponteggio", ponteggio_id=p, nome="Luca Bianchi", ruolo=P.PREPOSTO)
+    repo.inserisci("rischi_ponteggio", ponteggio_id=p, descrizione="Caduta dall'alto", probabilita=2, danno=4)
+    repo.inserisci("verifiche_ponteggio", ponteggio_id=p, voce="Basette", esito="Conforme", note="ok")
+    repo.salva_testo(pimus.chiave_testo(p, "montaggio"), "Sequenza di montaggio del cantiere.")
+    return p
+
+
+def test_registro_dei_controlli(repo, tmp_path):
+    from sicurcantiere.documenti.pimus import genera_registro
+
+    p = _ponteggio_completo(repo)
+    repo.inserisci("registro_ponteggio", ponteggio_id=p, data="2026-10-01", eseguita_da="Luca Bianchi",
+                   montanti=1, giunti=1, ancoraggi=1, controventi=1, impalcati=1, esito=pimus.IDONEO)
+    assert not pimus.avvisi_registro(repo.elenco("registro_ponteggio", ponteggio_id=p))
+    c = repo.inserisci("registro_ponteggio", ponteggio_id=p, data="2026-10-08", motivo=pimus.MOTIVI_CONTROLLO[1],
+                       eseguita_da="Luca Bianchi", ancoraggi=1, esito=pimus.NON_IDONEO, foto=str(tmp_path / "x.jpg"))
+    avvisi = pimus.avvisi_ponteggio(repo, repo.leggi("ponteggi", p))
+    assert any("esito negativo" in m for m in avvisi) and any("indicare gli interventi" in m for m in avvisi)
+    repo.aggiorna("registro_ponteggio", c, interventi="Sostituiti due ancoraggi")
+    repo.inserisci("registro_ponteggio", ponteggio_id=p, data="2026-10-09", esito=pimus.IDONEO)
+    assert not pimus.avvisi_registro(repo.elenco("registro_ponteggio", ponteggio_id=p))
+    testo = _testo(genera_registro(repo, p, tmp_path / "registro.docx"))
+    for atteso in ("Registro dei controlli del ponteggio", "08/10/2026", "Dopo violente perturbazioni atmosferiche",
+                   "Sostituiti due ancoraggi", "1 2 3 4 5", "Verticalità dei montanti", "File non trovato"):
+        assert atteso in testo, atteso
+
+
+def test_verbali_del_ponteggio(repo, tmp_path):
+    from sicurcantiere.documenti.pimus import genera_verbale
+
+    p = _ponteggio_completo(repo)
+    for tipo, atteso in ((pimus.FINE_MONTAGGIO, "idoneo all'uso"), (pimus.TRASFORMAZIONE, "Aggiunta mantovana"),
+                         (pimus.SMONTAGGIO, "Ancoraggi rimossi solo man mano"),
+                         (pimus.CONSEGNA, "Impegni dell'impresa che riceve")):
+        v = repo.inserisci("verbali_ponteggio", ponteggio_id=p, tipo=tipo, data="2026-10-20",
+                           descrizione="Aggiunta mantovana al secondo impalcato" if tipo == pimus.TRASFORMAZIONE
+                           else "", ricevente="Restauri Sud srl")
+        testo = _testo(genera_verbale(repo, p, tmp_path / f"{v}.docx", v))
+        assert atteso in testo and "20/10/2026" in testo and "Luca Bianchi" in testo, tipo
+        assert ("Restauri Sud srl" in testo) == (tipo == pimus.CONSEGNA)
+
+
+def test_duplica_e_modello_di_ponteggio(repo, tmp_path):
+    from sicurcantiere.archivio_utente import ArchivioAnagrafiche
+
+    p = _ponteggio_completo(repo)
+    repo.inserisci("registro_ponteggio", ponteggio_id=p, data="2026-10-01", esito=pimus.IDONEO)
+    copia = pimus.duplica_ponteggio(repo, p)
+    nuovo = repo.leggi("ponteggi", copia)
+    assert nuovo["nome"] == "Facciata nord (copia)" and nuovo["geometria"] == repo.leggi("ponteggi", p)["geometria"]
+    assert [a["nome"] for a in repo.elenco("addetti_ponteggio", ponteggio_id=copia)] == ["Luca Bianchi"]
+    assert repo.elenco("verifiche_ponteggio", ponteggio_id=copia)[0]["esito"] == ""
+    assert not repo.elenco("registro_ponteggio", ponteggio_id=copia)
+    assert repo.testo(pimus.chiave_testo(copia, "montaggio")) == "Sequenza di montaggio del cantiere."
+
+    archivio = ArchivioAnagrafiche(tmp_path / "archivio.db")
+    voce = archivio.leggi(archivio.salva_modello(repo, p, "Telai 9 m"))
+    altro = Repository(Progetto(tmp_path / "altro.spm", crea=True))
+    id_ = archivio.inserisci_modello(altro, voce)
+    m = altro.leggi("ponteggi", id_)
+    assert m["fabbricante"] == "Alfa" and m["opera_servita"] == "" and m["impresa_id"] is None
+    assert altro.testo(pimus.chiave_testo(id_, "montaggio")) == "Sequenza di montaggio del cantiere."
+    assert len(altro.elenco("rischi_ponteggio", ponteggio_id=id_)) == 1
+    assert not altro.elenco("addetti_ponteggio", ponteggio_id=id_)
+    archivio.chiudi()
+
+
+def test_pimus_composto_emesso_e_revisioni(repo, tmp_path):
+    from sicurcantiere import composizioni as comp
+    from sicurcantiere.documenti.pimus import documento_pimus
+
+    p = _ponteggio_completo(repo)
+    documento = documento_pimus(p)
+    bozza = comp.componi(repo, documento, "Prima emissione", 0)
+    assert bozza["stato"] == comp.BOZZA and bozza["mancanti"] and bozza["capitoli"]
+    assert comp.nome_documento(repo, documento) == "PiMUS - Facciata nord"
+    emessa = comp.emetti(repo, bozza["id"], conferma="Dati da completare a mano")
+    assert emessa["stato"] == comp.EMESSA
+    file = tmp_path / "emesso.docx"
+    file.write_bytes(comp.contenuto(repo, emessa["id"]))
+    testo = _testo(file)
+    assert "Revisioni del documento" in testo and "Prima emissione" in testo and "Rev. 0" in testo

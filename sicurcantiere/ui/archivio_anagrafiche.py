@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -19,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from sicurcantiere.archivio_utente import IMPRESA, PERSONA, SISTEMA, ArchivioAnagrafiche
+from sicurcantiere.archivio_utente import IMPRESA, MODELLO_PONTEGGIO, PERSONA, SISTEMA, ArchivioAnagrafiche
 from sicurcantiere.repository import Repository
 
 RUOLO_ID = Qt.ItemDataRole.UserRole
@@ -33,6 +34,15 @@ def _descrizione(voce: dict[str, Any]) -> str:
                  f"campata {g['campata']:g} m".replace(".", ",") if g.get("campata") else "",
                  f"larghezza {g['larghezza']:g} m".replace(".", ",") if g.get("larghezza") else "",
                  f"{len(d.get('allegati', []))} documenti" if d.get("allegati") else ""]
+    elif voce["tipo"] == MODELLO_PONTEGGIO:
+        g = d.get("geometria") or "{}"
+        try:
+            tratti = len(json.loads(g).get("tratti") or []) if isinstance(g, str) else 0
+        except ValueError:
+            tratti = 0
+        parti = [" ".join(v for v in (d.get("fabbricante", ""), d.get("sistema", "")) if v),
+                 f"altezza {d['altezza']:g} m".replace(".", ",") if d.get("altezza") else "",
+                 f"{tratti} tratti" if tratti > 1 else "", f"{len(d.get('testi') or {})} testi"]
     elif voce["tipo"] == IMPRESA:
         parti = [d.get("tipo", ""), d.get("partita_iva", ""), d.get("comune", "")]
         figure, lavoratori = len(d.get("figure", [])), len(d.get("lavoratori", []))
@@ -90,7 +100,9 @@ class DialogoAnagrafiche(QDialog):
         for voce in self.archivio.elenco(self.tipo, self.cerca.text()):
             gruppo_nome = ("Imprese e lavoratori autonomi" if voce["tipo"] == IMPRESA else
                            f"Sistemi di ponteggio · {voce['ruolo'] or 'tipologia non indicata'}"
-                           if voce["tipo"] == SISTEMA else (voce["ruolo"] or "Senza ruolo"))
+                           if voce["tipo"] == SISTEMA else
+                           f"Modelli di ponteggio · {voce['ruolo'] or 'tipologia non indicata'}"
+                           if voce["tipo"] == MODELLO_PONTEGGIO else (voce["ruolo"] or "Senza ruolo"))
             if gruppo_nome not in gruppi:
                 gruppi[gruppo_nome] = QTreeWidgetItem(self.albero, [gruppo_nome])
                 font = gruppi[gruppo_nome].font(0)
@@ -199,6 +211,39 @@ def salva_sistema(genitore: QWidget, repo: Repository, ponteggio_id: int | None)
     QMessageBox.information(genitore, "Archivio", "Sistema di ponteggio salvato nell'archivio: fabbricante, "
                                                   "autorizzazione, campate, pesi e libretto si ritrovano negli "
                                                   "altri cantieri.")
+
+
+def prendi_modello(genitore: QWidget, repo: Repository) -> int | None:
+    """Sceglie un modello di ponteggio dall'archivio e crea il ponteggio nel cantiere."""
+    archivio = ArchivioAnagrafiche()
+    try:
+        dialogo = DialogoAnagrafiche(archivio, MODELLO_PONTEGGIO, genitore=genitore)
+        dialogo.setWindowTitle("Modelli di ponteggio in archivio")
+        if dialogo.exec() and (voce := dialogo.scelta()):
+            return archivio.inserisci_modello(repo, voce)
+        return None
+    finally:
+        archivio.chiudi()
+
+
+def salva_modello(genitore: QWidget, repo: Repository, ponteggio_id: int | None) -> None:
+    if ponteggio_id is None:
+        QMessageBox.information(genitore, "Archivio", "Seleziona prima il ponteggio.")
+        return
+    from PySide6.QtWidgets import QInputDialog
+
+    p = repo.leggi("ponteggi", ponteggio_id)
+    nome, ok = QInputDialog.getText(genitore, "Salva come modello", "Nome del modello:", text=p["nome"] or "")
+    if not ok or not nome.strip():
+        return
+    archivio = ArchivioAnagrafiche()
+    try:
+        archivio.salva_modello(repo, ponteggio_id, nome.strip())
+    finally:
+        archivio.chiudi()
+    QMessageBox.information(genitore, "Archivio", "Modello salvato: con «Nuovo da modello...» lo ritrovi negli altri "
+                                                  "cantieri con tratti, elementi, testi, rischi e verifiche. Squadra "
+                                                  "e dati del cantiere non vengono copiati.")
 
 
 def gestisci(genitore: QWidget) -> None:

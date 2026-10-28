@@ -22,6 +22,11 @@ from sicurcantiere.repository import Repository
 CANTIERE, IMPRESA, PONTEGGI = "Cantiere", "Impresa", "Ponteggi"
 
 
+def documento_pimus(ponteggio_id: int) -> str:
+    """Chiave del PiMUS di un ponteggio nelle revisioni e nei documenti composti."""
+    return f"PIMUS:{ponteggio_id}"
+
+
 def genera_pimus(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Path:
     with stile.colori_documento(*stile.COLORI_PIMUS):
         return _genera(repo, ponteggio_id, destinazione)
@@ -49,7 +54,10 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
     testi = {chiave: repo.testo(pimus.chiave_testo(ponteggio_id, chiave)) for chiave, _, _ in pimus.SEZIONI}
     titoli = {chiave: titolo for chiave, titolo, _ in pimus.SEZIONI}
     comune = f"{c['comune']} ({c['provincia']})" if c["provincia"] else c["comune"]
-    data_documento = data_it(date.today())
+    revisioni = repo.elenco("revisioni", documento=documento_pimus(ponteggio_id))
+    ultima = revisioni[-1] if revisioni else None
+    data_documento = data_it(ultima["data"]) if ultima and ultima["data"] else data_it(date.today())
+    revisione = f"Rev. {ultima['numero']} del {data_documento}" if ultima else data_documento
     g = P.geometria(p)
     lati = P.lati(p, g)
     altezza = max(p["altezza"], P.altezza_massima(p, g))
@@ -62,7 +70,7 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
     doc = Document()
     stile.imposta_stili(doc)
     stile.imposta_pagina(doc, " · ".join(v for v in (c["nome"], comune) if v),
-                         (f"PiMUS · {p['nome']}".strip(" ·"), data_documento))
+                         (f"PiMUS · {p['nome']}".strip(" ·"), revisione))
     stile.copertina(
         doc,
         comune=comune,
@@ -76,7 +84,12 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
         impresa=[impresa.get("ragione_sociale") or c["nome"] or "Ponteggio", anagrafiche.sede(impresa)
                  if impresa else ""],
         logo=impresa.get("logo", ""),
+        revisione=revisione if ultima else "",
     )
+    if revisioni:
+        stile.banda(doc, "Revisioni del documento")
+        stile.tabella_colorata(doc, ["Rev.", "Data", "Descrizione"], [
+            [str(r["numero"]), data_it(r["data"]), r["descrizione"]] for r in revisioni], larghezze=[1.2, 2.6, 13.6])
 
     avvisi = pimus.avvisi(p, addetti)
     if avvisi:
@@ -306,6 +319,10 @@ def _genera(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Pa
                                  else 3 if v["esito"] == "Non conforme" else 1)
     else:
         stile.testo(doc, "", "elenco delle verifiche dell'Allegato XIX", PONTEGGI, OBBLIGATORIO)
+    stile.nota(doc, "Durante l'uso il preposto controlla il ponteggio a intervalli periodici e dopo violente "
+                    "perturbazioni atmosferiche o prolungata interruzione del lavoro (art. 137, comma 2); i controlli "
+                    "sono annotati nel registro dei controlli del ponteggio, tenuto in cantiere con il presente "
+                    "piano.")
 
     p_data = doc.add_paragraph(f"{c['comune'] or ''}, {data_documento}".strip(", "))
     stile._spaziatura(p_data, 14, 8)
@@ -354,52 +371,179 @@ def _presa_visione(doc, addetti) -> None:
                            larghezze=[5.4, 4.0, 2.8, 5.2])
 
 
+# Contenuto di ogni verbale: riferimento, titolo, controlli da spuntare, impegni o note finali.
+VERBALI: dict[str, dict] = {
+    pimus.FINE_MONTAGGIO: {
+        "riferimento": "D.Lgs. 81/2008 · artt. 136 e 137 e Allegato XIX",
+        "titolo": "Verbale di fine montaggio e messa in uso del ponteggio",
+        "controlli": [
+            "Montato secondo il PiMUS, il disegno esecutivo e gli schemi del libretto (o il progetto)",
+            "Piano di appoggio, basette e tavole di ripartizione efficienti",
+            "Montanti verticali, giunti e collegamenti serrati, diagonali e controventi completi",
+            "Ancoraggi presenti nel numero e nelle posizioni del disegno esecutivo",
+            "Impalcati completi e bloccati, parapetti e fermapiede su tutti i lati aperti",
+            "Scale di accesso e botole funzionanti, distanza dalla facciata non superiore a 20 cm o protetta",
+            "Mantovane, reti, teli e protezioni dei passaggi in opera dove previste",
+            "Messa a terra eseguita se richiesta dalla valutazione contro le scariche atmosferiche",
+            "Cartello con l'impresa, il carico ammesso e il divieto di modifiche esposto",
+        ],
+        "chiusura": [
+            "Il ponteggio è dichiarato idoneo all'uso a partire dalla data del presente verbale.",
+            "Durante l'uso il preposto ne verifica lo stato a intervalli periodici e dopo violente perturbazioni "
+            "atmosferiche o prolungate interruzioni del lavoro, registrando i controlli (art. 137, comma 2).",
+        ],
+    },
+    pimus.CONSEGNA: {
+        "riferimento": "D.Lgs. 81/2008 · art. 136 e Allegato XXII, punto 9",
+        "titolo": "Verbale di consegna del ponteggio",
+        "controlli": [
+            "Montato secondo il PiMUS e il disegno esecutivo, verificato dal preposto",
+            "Ancoraggi presenti nel numero e nelle posizioni previste",
+            "Parapetti, fermapiede e impalcati completi; botole e scale di accesso funzionanti",
+            "Mantovane, reti e protezioni dei passaggi in opera dove previste",
+            "Cartello con il carico ammesso esposto",
+            "Copia del PiMUS, del disegno esecutivo e del libretto consegnata all'impresa che riceve",
+        ],
+        "titolo_chiusura": "Impegni dell'impresa che riceve",
+        "chiusura": [
+            "Usare il ponteggio solo per i carichi ammessi e secondo le regole d'uso del PiMUS.",
+            "Non modificare, togliere o spostare elementi, ancoraggi, parapetti o tavole: ogni trasformazione è "
+            "richiesta all'impresa di montaggio.",
+            "Segnalare subito ogni anomalia e sospendere l'uso dopo eventi meteorologici violenti fino alla "
+            "verifica.",
+            "Far accedere solo dalle scale interne o dalle torri scala previste.",
+        ],
+    },
+    pimus.TRASFORMAZIONE: {
+        "riferimento": "D.Lgs. 81/2008 · artt. 133, 134 e 136",
+        "titolo": "Verbale di trasformazione del ponteggio",
+        "controlli": [
+            "Trasformazione prevista dal PiMUS o PiMUS aggiornato prima di eseguirla",
+            "Configurazione finale compresa negli schemi tipo del libretto, oppure progetto aggiornato e firmato",
+            "Disegno esecutivo aggiornato e firmato dal responsabile del cantiere",
+            "Area sottostante delimitata e accesso impedito ai non addetti durante i lavori",
+            "Eseguita da lavoratori formati sotto la diretta sorveglianza del preposto",
+            "Ancoraggi, parapetti e impalcati ripristinati e verificati a fine trasformazione",
+        ],
+        "chiusura": [
+            "Al termine della trasformazione il ponteggio è verificato dal preposto prima di essere riutilizzato.",
+        ],
+    },
+    pimus.SMONTAGGIO: {
+        "riferimento": "D.Lgs. 81/2008 · art. 136, comma 6, e Allegato XXII, punto 8",
+        "titolo": "Verbale di smontaggio del ponteggio",
+        "controlli": [
+            "Stato del ponteggio verificato prima di iniziare (ancoraggi, giunti, impalcati)",
+            "Area sottostante delimitata e accesso impedito ai non addetti",
+            "Smontaggio dall'alto verso il basso con la sequenza del PiMUS e i sistemi anticaduta previsti",
+            "Ancoraggi rimossi solo man mano, al livello che si sta smontando",
+            "Elementi calati con mezzi di sollevamento o passati a mano, mai lanciati",
+            "Materiale accatastato, controllato e allontanato; elementi danneggiati separati",
+            "Fori degli ancoraggi chiusi e area restituita libera e pulita",
+        ],
+        "chiusura": [
+            "Lo smontaggio è stato eseguito da lavoratori formati sotto la diretta sorveglianza del preposto "
+            "(art. 136, comma 6).",
+        ],
+    },
+}
+
+
 def genera_consegna(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Path:
     """Verbale di consegna del ponteggio all'impresa che lo utilizza (cessione a terzi, Allegato XXII punto 9)."""
+    return genera_verbale(repo, ponteggio_id, destinazione, tipo=pimus.CONSEGNA)
+
+
+def genera_verbale(repo: Repository, ponteggio_id: int, destinazione: str | Path, verbale_id: int | None = None,
+                   tipo: str | None = None) -> Path:
+    """Verbale di fine montaggio, consegna, trasformazione o smontaggio, dalla riga del registro dei verbali
+    (data, preposto, impresa che riceve, descrizione) oppure in bianco per il tipo indicato."""
+    with stile.colori_documento(*stile.COLORI_PIMUS):
+        p = repo.leggi("ponteggi", ponteggio_id)
+        if p is None:
+            raise ValueError("Ponteggio inesistente")
+        v = (repo.leggi("verbali_ponteggio", verbale_id) if verbale_id else None) or {}
+        tipo = v.get("tipo") or tipo or pimus.FINE_MONTAGGIO
+        modello = VERBALI.get(tipo, VERBALI[pimus.FINE_MONTAGGIO])
+        c = repo.cantiere()
+        impresa = (repo.leggi("imprese", p["impresa_id"]) if p["impresa_id"] else None) or {}
+        g = P.geometria(p)
+        tratti = P.tratti(p, g)
+        data = data_it(v["data"]) if v.get("data") else "____________"
+        preposti = [a["nome"] for a in repo.elenco("addetti_ponteggio", ponteggio_id=ponteggio_id)
+                    if a["ruolo"] == P.PREPOSTO and a["nome"].strip()]
+        preposto = v.get("preposto") or ", ".join(preposti) or p["preposto"]
+        vuoto = "______________________________"
+        doc = stile.documento_semplice(" · ".join(x for x in (c["nome"], c["comune"]) if x),
+                                       (f"{tipo} del ponteggio · {p['nome']}", data_it(v["data"]) if v.get("data")
+                                        else data_it(date.today())))
+        stile.intestazione_modulo(doc, modello["riferimento"], modello["titolo"], p["nome"])
+        righe = [
+            ("Cantiere", " · ".join(x for x in (c["nome"], indirizzo_cantiere(c)) if x)),
+            ("Ponteggio", f"{p['nome']} · {', '.join(P.tipologie(p, g))}"),
+            ("Sistema e autorizzazione", " · ".join(x for x in (p["fabbricante"], p.get("sistema", ""),
+                                                               p["autorizzazione"]) if x)),
+            ("Impresa che ha montato il ponteggio", impresa.get("ragione_sociale", "")),
+            ("Data", data),
+            ("Preposto", preposto or vuoto),
+        ]
+        if tipo == pimus.CONSEGNA:
+            righe.append(("Ricevuto da", v.get("ricevente") or p.get("impresa_utilizzatrice", "") or vuoto))
+        righe.append(("Tratti", "; ".join(f"T{t.indice + 1} {t.nome} ({_misura(t.lunghezza)}, {t.livelli} impalcati)"
+                                          for t in tratti)))
+        if tipo != pimus.SMONTAGGIO:
+            righe.append(("Carico ammesso sugli impalcati", p["classe_carico"] or vuoto))
+        stile.scheda(doc, righe)
+        if tipo == pimus.TRASFORMAZIONE or v.get("descrizione"):
+            stile.sezione(doc, "Trasformazione eseguita" if tipo == pimus.TRASFORMAZIONE else "Descrizione")
+            doc.add_paragraph(v.get("descrizione") or "\n".join([vuoto * 2] * 3))
+        stile.sezione(doc, "Controlli")
+        stile.tabella_colorata(doc, ["Controllo", "Sì", "No", "Note"], [[x, "", "", ""] for x in modello["controlli"]],
+                               9, larghezze=[10.0, 1.2, 1.2, 5.0])
+        stile.sezione(doc, modello.get("titolo_chiusura", "Esito"))
+        stile.elenco(doc, modello["chiusura"])
+        if v.get("note"):
+            stile.nota(doc, v["note"])
+        p_data = doc.add_paragraph(f"{c['comune'] or ''}, {data}".strip(", "))
+        stile._spaziatura(p_data, 14, 8)
+        firme = [("Il preposto alle operazioni", preposto or ""),
+                 ("Per l'impresa che ha montato il ponteggio", impresa.get("datore_lavoro", ""))]
+        if tipo == pimus.CONSEGNA:
+            firme.append(("Per l'impresa che riceve", v.get("ricevente") or p.get("impresa_utilizzatrice", "")))
+        stile.firme(doc, firme)
+        return salva(doc, destinazione)
+
+
+def genera_registro(repo: Repository, ponteggio_id: int, destinazione: str | Path) -> Path:
+    """Registro dei controlli del ponteggio in uso (art. 137, comma 2), con righe in bianco da compilare in
+    cantiere e le foto allegate ai controlli."""
     with stile.colori_documento(*stile.COLORI_PIMUS):
         p = repo.leggi("ponteggi", ponteggio_id)
         if p is None:
             raise ValueError("Ponteggio inesistente")
         c = repo.cantiere()
-        impresa = (repo.leggi("imprese", p["impresa_id"]) if p["impresa_id"] else None) or {}
-        g = P.geometria(p)
-        tratti = P.tratti(p, g)
-        doc = stile.documento_semplice(" · ".join(v for v in (c["nome"], c["comune"]) if v),
-                                       (f"Consegna del ponteggio · {p['nome']}", data_it(date.today())))
-        stile.intestazione_modulo(doc, "D.Lgs. 81/2008 · art. 136 e Allegato XXII, punto 9",
-                                  "Verbale di consegna del ponteggio", p["nome"])
-        stile.scheda(doc, [
-            ("Cantiere", " · ".join(v for v in (c["nome"], indirizzo_cantiere(c)) if v)),
-            ("Ponteggio", f"{p['nome']} · {', '.join(P.tipologie(p, g))}"),
-            ("Sistema e autorizzazione", " · ".join(v for v in (p["fabbricante"], p.get("sistema", ""),
-                                                               p["autorizzazione"]) if v)),
-            ("Consegnato da", impresa.get("ragione_sociale", "")),
-            ("Ricevuto da", p.get("impresa_utilizzatrice", "") or "______________________________"),
-            ("Tratti consegnati", "; ".join(f"T{t.indice + 1} {t.nome} ({_misura(t.lunghezza)}, "
-                                            f"{t.livelli} impalcati)" for t in tratti)),
-            ("Carico ammesso sugli impalcati", p["classe_carico"] or "______________________________"),
-        ])
-        stile.sezione(doc, "Stato del ponteggio alla consegna")
-        voci = ["Montato secondo il PiMUS e il disegno esecutivo, verificato dal preposto",
-                "Ancoraggi presenti nel numero e nelle posizioni previste",
-                "Parapetti, fermapiede e impalcati completi; botole e scale di accesso funzionanti",
-                "Mantovane, reti e protezioni dei passaggi in opera dove previste",
-                "Cartello con il carico ammesso esposto",
-                "Copia del PiMUS, del disegno esecutivo e del libretto consegnata all'impresa che riceve"]
-        stile.tabella_colorata(doc, ["Verifica", "Sì", "No", "Note"], [[v, "", "", ""] for v in voci], 9,
-                               larghezze=[10.0, 1.2, 1.2, 5.0])
-        stile.sezione(doc, "Impegni dell'impresa che riceve")
-        stile.elenco(doc, [
-            "Usare il ponteggio solo per i carichi ammessi e secondo le regole d'uso del PiMUS.",
-            "Non modificare, togliere o spostare elementi, ancoraggi, parapetti o tavole: ogni trasformazione è "
-            "richiesta all'impresa di montaggio.",
-            "Segnalare subito ogni anomalia e sospendere l'uso dopo eventi meteorologici violenti fino alla verifica.",
-            "Far accedere solo dalle scale interne o dalle torri scala previste.",
-        ])
-        p_data = doc.add_paragraph(f"{c['comune'] or ''}, ____________".strip(", "))
-        stile._spaziatura(p_data, 14, 8)
-        stile.firme(doc, [("Per l'impresa che consegna", impresa.get("datore_lavoro", "")),
-                          ("Per l'impresa che riceve", "")])
+        registro = repo.elenco("registro_ponteggio", ponteggio_id=ponteggio_id)
+        doc = stile.documento_semplice(" · ".join(x for x in (c["nome"], c["comune"]) if x),
+                                       (f"Registro dei controlli · {p['nome']}", data_it(date.today())))
+        stile.intestazione_modulo(doc, "D.Lgs. 81/2008 · art. 137, comma 2, e Allegato XIX",
+                                  "Registro dei controlli del ponteggio", p["nome"])
+        doc.add_paragraph("Il preposto, a intervalli periodici o dopo violente perturbazioni atmosferiche o prolungata "
+                          "interruzione del lavoro, si assicura della verticalità dei montanti, del giusto serraggio "
+                          "dei giunti, dell'efficienza degli ancoraggi e dei controventi, curando l'eventuale "
+                          "sostituzione o il rinforzo degli elementi inefficienti. Legenda dei controlli:")
+        stile.elenco(doc, [f"{n}. {voce}" for n, (_, voce) in enumerate(pimus.CONTROLLI_USO, 1)])
+        righe = []
+        for r in registro:
+            esiti = " ".join(str(n) for n, (campo, _) in enumerate(pimus.CONTROLLI_USO, 1) if r[campo])
+            righe.append([data_it(r["data"]) if r["data"] else "", r["motivo"], esiti or "—", r["esito"],
+                          r["interventi"], r["eseguita_da"], ""])
+        righe += [["", "", "", "", "", "", ""] for _ in range(max(6, 14 - len(righe)))]
+        stile.tabella_colorata(doc, ["Data", "Motivo", "Controlli eseguiti", "Esito", "Interventi",
+                                     "Preposto", "Firma"], righe, 8, larghezze=[1.9, 3.0, 1.9, 2.4, 3.6, 2.4, 2.2])
+        con_foto = [r for r in registro if r["foto"]]
+        for r in con_foto:
+            stile.banda(doc, f"Foto del controllo del {data_it(r['data']) if r['data'] else '—'} · {r['motivo']}")
+            stile.file_allegato(doc, r["foto"], "nella pagina «Ponteggi e PiMUS», scheda «Registro e verbali»")
         return salva(doc, destinazione)
 
 

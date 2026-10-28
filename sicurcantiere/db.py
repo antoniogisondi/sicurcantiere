@@ -509,6 +509,36 @@ MIGRAZIONI: list[str] = [
     ALTER TABLE imprese ADD COLUMN psc_ricevuto_data TEXT;
     ALTER TABLE cantiere ADD COLUMN lavori_pubblici INTEGER NOT NULL DEFAULT 0;
     """,
+    # v0.27: PiMUS. Registro dei controlli del ponteggio in uso (art. 137, comma 2: a intervalli periodici, dopo
+    # violente perturbazioni atmosferiche o prolungata interruzione del lavoro) e verbali di fine montaggio,
+    # consegna, trasformazione e smontaggio.
+    """
+    CREATE TABLE registro_ponteggio (
+        id INTEGER PRIMARY KEY,
+        ponteggio_id INTEGER NOT NULL REFERENCES ponteggi(id) ON DELETE CASCADE,
+        data TEXT,
+        motivo TEXT NOT NULL DEFAULT 'Controllo periodico',
+        eseguita_da TEXT NOT NULL DEFAULT '',
+        montanti INTEGER NOT NULL DEFAULT 0,
+        giunti INTEGER NOT NULL DEFAULT 0,
+        ancoraggi INTEGER NOT NULL DEFAULT 0,
+        controventi INTEGER NOT NULL DEFAULT 0,
+        impalcati INTEGER NOT NULL DEFAULT 0,
+        esito TEXT NOT NULL DEFAULT '',
+        interventi TEXT NOT NULL DEFAULT '',
+        foto TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE verbali_ponteggio (
+        id INTEGER PRIMARY KEY,
+        ponteggio_id INTEGER NOT NULL REFERENCES ponteggi(id) ON DELETE CASCADE,
+        tipo TEXT NOT NULL DEFAULT 'Fine montaggio',
+        data TEXT,
+        preposto TEXT NOT NULL DEFAULT '',
+        ricevente TEXT NOT NULL DEFAULT '',
+        descrizione TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT ''
+    );
+    """,
 ]
 
 VERSIONE_SCHEMA = len(MIGRAZIONI)
