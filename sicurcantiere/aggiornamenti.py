@@ -30,8 +30,9 @@ from sicurcantiere import __version__
 URL_ULTIMA_VERSIONE = "https://api.github.com/repos/antoniogisondi/sicurcantiere/releases/latest"
 NOME_INSTALLATORE = "SicurCantiere-setup.exe"
 NOME_FIRMA = NOME_INSTALLATORE + ".firma"
-# Chiave pubblica degli aggiornamenti (32 byte in base64). Vuota = verifica della firma non ancora attiva.
-CHIAVE_AGGIORNAMENTI = ""
+# Chiave pubblica degli aggiornamenti (32 byte in base64), attiva dalla versione 0.27.1: ogni aggiornamento
+# deve essere firmato con la chiave segreta corrispondente (sulla VM e nel segreto di GitHub).
+CHIAVE_AGGIORNAMENTI = "ZrIYttQrTO3pxuxFk5CLWYeBBijka/bnZAHtMlUcgE8="
 
 
 class ErroreAggiornamento(Exception):

@@ -4,7 +4,7 @@ Documento di riferimento del prodotto, da tenere aggiornato a ogni versione. Ser
 di vendita, per le presentazioni ai clienti e per non perdere le decisioni prese. Il dettaglio
 tecnico è nel [README](../README.md).
 
-*Ultimo aggiornamento: versione 0.27.0 (PiMUS completo: registro dei controlli del ponteggio in uso, verbali di fine montaggio, consegna, trasformazione e smontaggio, duplicazione e modelli di ponteggio, PiMUS composto e salvato con bozza, emissione e revisioni), ottobre 2026.*
+*Ultimo aggiornamento: versione 0.27.1 (aggiornamenti firmati attivi; dalla 0.27.0: PiMUS completo: registro dei controlli del ponteggio in uso, verbali di fine montaggio, consegna, trasformazione e smontaggio, duplicazione e modelli di ponteggio, PiMUS composto e salvato con bozza, emissione e revisioni), ottobre 2026.*
 
 ## Lo scopo
 
@@ -607,9 +607,11 @@ Pubblicato dalla versione 0.23.0:
   l'assistente non è disponibile.
 - **Aggiornamenti firmati** (passo 5): ogni versione pubblicata ha la firma (versione, dimensione, SHA-256)
   fatta con la chiave degli aggiornamenti, segreta su GitHub; il programma verifica firma e file prima di
-  installare e scarta un installatore modificato o una firma di un'altra versione. Si attiva creando la
-  chiave sulla VM (`python -m licenze chiave-aggiornamenti`), mettendo la segreta su GitHub e la pubblica nel
-  programma (vedi licenze/README.md).
+  installare e scarta un installatore modificato o una firma di un'altra versione. **Attivi dalla 0.27.1**
+  (ottobre 2026): chiave creata sulla VM (`/var/lib/sicurcantiere-licenze/chiave_aggiornamenti.key`, da
+  tenere nei backup con la chiave delle licenze), segreta su GitHub (`SICURCANTIERE_FIRMA_AGGIORNAMENTI`),
+  pubblica nel programma. Se il segreto manca o non corrisponde la pubblicazione si ferma da sola. Sono
+  una cosa diversa dal certificato di firma del codice, che serve a Windows per mostrare l'editore.
 
 Regole scelte (modificabili): abbonamento scaduto → sola lettura; licenza perpetua → funzionano le
 versioni uscite entro la fine degli aggiornamenti inclusi, le successive si aprono in sola lettura.
@@ -653,9 +655,7 @@ versioni uscite entro la fine degli aggiornamenti inclusi, le successive si apro
    - da verificare sul testo ufficiale dell'Accordo Stato-Regioni del 17/04/2025 la durata del corso per
      i ponteggisti (28 ore secondo la maggior parte delle fonti, una ne indica 32) e sul testo vigente gli
      articoli 131-138.
-2. **Licenze per PC, passi successivi** (fatti i passi 1-6, vedi sopra):
-   - attivare gli aggiornamenti firmati: chiave sulla VM (`python -m licenze chiave-aggiornamenti`), segreta
-     su GitHub, chiave pubblica nel programma;
+2. **Licenze per PC, passi successivi** (fatti i passi 1-6 e gli aggiornamenti firmati, vedi sopra):
    - da decidere: codici nuovi casuali al posto di `SC1-…` per le licenze nuove; prova gratuita legata al PC
      sul server (oggi riparte reinstallando il programma);
    - passo 7: checklist GDPR (informativa, registro dei trattamenti, backup cifrati con password) e Cyber
